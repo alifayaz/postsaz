@@ -1,5 +1,5 @@
 const AVAL_AI_API_KEY = process.env.AVAL_AI_API_KEY || "aa-zKzABN9gxN6BA5hw7pnGJM14Q5tHOkUiPCbg8WCaurt2kmlr"
-const AVAL_AI_BASE_URL = "https://api.avalai.ir/v1"
+const AVAL_AI_BASE_URL = "https://api.avalapis.ir/v1"
 
 export interface CaptionRequest {
   topic: string
