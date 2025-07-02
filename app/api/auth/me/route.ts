@@ -3,6 +3,11 @@ import { AuthService } from "@/lib/auth"
 
 export async function GET() {
     try {
+        // بررسی اینکه در build time نباشیم
+        if (process.env.NODE_ENV === "production" && !process.env.VERCEL_URL && !process.env.DATABASE_URL) {
+            return NextResponse.json({ error: "Service not available during build" }, { status: 503 })
+        }
+
         const user = await AuthService.getCurrentUser()
 
         if (!user) {
