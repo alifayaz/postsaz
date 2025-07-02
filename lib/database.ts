@@ -47,6 +47,10 @@ const getDatabase = () => {
 
             console.log("🔄 Connecting to database...")
             db = new Database(DATABASE_PATH)
+
+            // تنظیم WAL mode برای بهبود عملکرد
+            db.pragma("journal_mode = WAL")
+
             console.log("✅ Database connected successfully at:", DATABASE_PATH)
 
             // بررسی اتصال
@@ -88,7 +92,7 @@ export function initializeDatabase() {
         `)
         console.log("✅ Users table created/verified")
 
-        // جدول پست‌ها
+        // جدول پست‌ها با بررسی دقیق‌تر
         database.exec(`
             CREATE TABLE IF NOT EXISTS posts (
                                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -105,22 +109,31 @@ export function initializeDatabase() {
         `)
         console.log("✅ Posts table created/verified")
 
+        // بررسی ساختار جدول posts
+        const postsTableInfo = database.prepare("PRAGMA table_info(posts)").all()
+        console.log("📋 Posts table structure:", postsTableInfo)
+
         // جدول نشست‌ها (sessions)
         database.exec(`
-            CREATE TABLE IF NOT EXISTS sessions (
-                                                    id TEXT PRIMARY KEY,
-                                                    user_id INTEGER NOT NULL,
-                                                    expires_at DATETIME NOT NULL,
-                                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                                                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-                )
-        `)
+      CREATE TABLE IF NOT EXISTS sessions (
+        id TEXT PRIMARY KEY,
+        user_id INTEGER NOT NULL,
+        expires_at DATETIME NOT NULL,
+        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+      )
+    `)
         console.log("✅ Sessions table created/verified")
 
         // بررسی تعداد کاربران موجود
         const userCountQuery = database.prepare("SELECT COUNT(*) as count FROM users")
         const userCount = userCountQuery.get() as { count: number }
         console.log("📊 Current users count:", userCount.count)
+
+        // بررسی تعداد پست‌ها موجود
+        const postCountQuery = database.prepare("SELECT COUNT(*) as count FROM posts")
+        const postCount = postCountQuery.get() as { count: number }
+        console.log("📊 Current posts count:", postCount.count)
 
         console.log("✅ Database initialization completed successfully")
     } catch (error) {
@@ -195,9 +208,9 @@ export class UserService {
 
             console.log("🔄 Preparing insert statement...")
             const stmt = database.prepare(`
-        INSERT INTO users (email, password, first_name, last_name, full_name)
-        VALUES (?, ?, ?, ?, ?)
-      `)
+                INSERT INTO users (email, password, first_name, last_name, full_name)
+                VALUES (?, ?, ?, ?, ?)
+            `)
 
             console.log("🔄 Executing insert with data:", {
                 email: userData.email,
@@ -447,10 +460,40 @@ export class PostService {
         }
 
         try {
+            console.log("🔄 PostService.createPost called with data:", {
+                user_id: postData.user_id,
+                title: postData.title,
+                template_id: postData.template_id,
+                image_url: postData.image_url ? "provided" : "null",
+                caption: postData.caption ? postData.caption.substring(0, 50) + "..." : "null",
+                topic: postData.topic,
+            })
+
+            // بررسی وجود کاربر
+            console.log("🔄 Checking if user exists...")
+            const userExists = database.prepare("SELECT id FROM users WHERE id = ?").get(postData.user_id)
+            if (!userExists) {
+                console.log("❌ User not found:", postData.user_id)
+                throw new Error("کاربر یافت نشد")
+            }
+            console.log("✅ User exists:", postData.user_id)
+
+            // آماده‌سازی statement
+            console.log("🔄 Preparing insert statement...")
             const stmt = database.prepare(`
-                INSERT INTO posts (user_id, title, template_id, image_url, caption, topic)
-                VALUES (?, ?, ?, ?, ?, ?)
-            `)
+        INSERT INTO posts (user_id, title, template_id, image_url, caption, topic)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `)
+
+            console.log("🔄 Executing insert statement...")
+            console.log("📝 Values to insert:", [
+                postData.user_id,
+                postData.title || null,
+                postData.template_id,
+                postData.image_url || null,
+                postData.caption || null,
+                postData.topic || null,
+            ])
 
             const result = stmt.run(
                 postData.user_id,
@@ -461,9 +504,24 @@ export class PostService {
                 postData.topic || null,
             )
 
-            return this.getPostById(result.lastInsertRowid as number)
-        } catch (error) {
-            console.error("Create post error:", error)
+            console.log("✅ Insert result:", result)
+            console.log("✅ New post ID:", result.lastInsertRowid)
+
+            if (!result.lastInsertRowid) {
+                throw new Error("خطا در ایجاد پست - ID دریافت نشد")
+            }
+
+            const newPost = this.getPostById(result.lastInsertRowid as number)
+            console.log("✅ Retrieved new post:", newPost.id)
+
+            return newPost
+        } catch (error: any) {
+            console.error("❌ Create post error:", error)
+            console.error("❌ Error details:", {
+                message: error.message,
+                code: error.code,
+                errno: error.errno,
+            })
             throw error
         }
     }
@@ -475,16 +533,20 @@ export class PostService {
         }
 
         try {
+            console.log("🔄 Getting post by ID:", id)
+
             const stmt = database.prepare("SELECT * FROM posts WHERE id = ?")
             const post = stmt.get(id) as Post
 
             if (!post) {
+                console.log("❌ Post not found with ID:", id)
                 throw new Error("پست یافت نشد")
             }
 
+            console.log("✅ Post found:", post.id)
             return post
         } catch (error) {
-            console.error("Get post error:", error)
+            console.error("❌ Get post error:", error)
             throw error
         }
     }
@@ -492,14 +554,20 @@ export class PostService {
     static getUserPosts(userId: number, limit = 20, offset = 0): Post[] {
         const database = getDatabase()
         if (!database) {
+            console.log("❌ Database not available for getUserPosts")
             return []
         }
 
         try {
+            console.log("🔄 Getting posts for user:", userId, "limit:", limit, "offset:", offset)
+
             const stmt = database.prepare("SELECT * FROM posts WHERE user_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?")
-            return stmt.all(userId, limit, offset) as Post[]
+            const posts = stmt.all(userId, limit, offset) as Post[]
+
+            console.log("✅ Posts found:", posts.length)
+            return posts
         } catch (error) {
-            console.error("Get user posts error:", error)
+            console.error("❌ Get user posts error:", error)
             return []
         }
     }

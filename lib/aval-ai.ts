@@ -16,6 +16,18 @@ export interface CaptionResponse {
   error?: string
 }
 
+export interface ImageRequest {
+  prompt: string
+  style?: "realistic" | "artistic" | "cartoon" | "abstract"
+  size?: "1024x1024" | "512x512" | "256x256"
+}
+
+export interface ImageResponse {
+  imageUrl: string
+  success: boolean
+  error?: string
+}
+
 export async function generateCaption(request: CaptionRequest): Promise<CaptionResponse> {
   try {
     const prompt = createPrompt(request)
@@ -29,7 +41,7 @@ export async function generateCaption(request: CaptionRequest): Promise<CaptionR
         Authorization: `Bearer ${AVAL_AI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-4.1-mini",
+        model: "gpt-3.5-turbo",
         messages: [
           {
             role: "system",
@@ -94,6 +106,151 @@ export async function generateCaption(request: CaptionRequest): Promise<CaptionR
   }
 }
 
+export async function generateImage(request: ImageRequest): Promise<ImageResponse> {
+  try {
+    const enhancedPrompt = createImagePrompt(request.prompt, request.style)
+
+    console.log("🖼️ Sending image generation request to Aval AI...")
+    console.log("📝 Enhanced prompt:", enhancedPrompt)
+    console.log("🎨 Style:", request.style)
+    console.log("📏 Size:", request.size)
+
+    const response = await fetch(`${AVAL_AI_BASE_URL}/images/generations`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${AVAL_AI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "dall-e-3",
+        prompt: enhancedPrompt,
+        n: 1,
+        size: request.size || "1024x1024",
+        quality: "standard",
+        response_format: "url",
+      }),
+    })
+
+    console.log("📡 Image generation response status:", response.status)
+
+    if (!response.ok) {
+      const errorText = await response.text()
+      console.error("❌ Image API Error:", errorText)
+
+      if (response.status === 429) {
+        throw new Error("محدودیت تعداد درخواست‌ها. لطفاً چند دقیقه صبر کنید و دوباره تلاش کنید.")
+      } else if (response.status === 401) {
+        throw new Error("کلید API نامعتبر است")
+      } else if (response.status === 403) {
+        throw new Error("دسترسی مجاز نیست")
+      } else {
+        throw new Error(`خطای سرور: ${response.status}`)
+      }
+    }
+
+    const data = await response.json()
+    console.log("📡 Full Image API Response:", JSON.stringify(data, null, 2))
+
+    // بررسی ساختارهای مختلف پاسخ
+    let imageUrl = ""
+
+    // حالت اول: OpenAI standard format
+    if (data.data && Array.isArray(data.data) && data.data[0]?.url) {
+      imageUrl = data.data[0].url
+      console.log("✅ Found image URL in data.data[0].url:", imageUrl)
+    }
+    // حالت دوم: Direct URL in response
+    else if (data.url) {
+      imageUrl = data.url
+      console.log("✅ Found image URL in data.url:", imageUrl)
+    }
+    // حالت سوم: Image field
+    else if (data.image) {
+      imageUrl = data.image
+      console.log("✅ Found image URL in data.image:", imageUrl)
+    }
+    // حالت چهارم: Result field
+    else if (data.result) {
+      imageUrl = data.result
+      console.log("✅ Found image URL in data.result:", imageUrl)
+    }
+    // حالت پنجم: Images array
+    else if (data.images && Array.isArray(data.images) && data.images[0]) {
+      imageUrl = data.images[0]
+      console.log("✅ Found image URL in data.images[0]:", imageUrl)
+    }
+
+    console.log("🔍 Final extracted imageUrl:", imageUrl)
+
+    if (!imageUrl) {
+      console.error("❌ No image URL found in response")
+      console.error("📋 Available keys in response:", Object.keys(data))
+      throw new Error("تصویر تولید نشد - URL یافت نشد")
+    }
+
+    // بررسی معتبر بودن URL
+    if (!imageUrl.startsWith("http")) {
+      console.error("❌ Invalid URL format:", imageUrl)
+      throw new Error("فرمت URL تصویر نامعتبر است")
+    }
+
+    console.log("🔄 Attempting to download and convert image to base64...")
+
+    // تلاش برای دانلود و تبدیل تصویر به base64
+    try {
+      const imageResponse = await fetch(imageUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36",
+          Accept: "image/*",
+        },
+      })
+
+      console.log("📡 Image download response status:", imageResponse.status)
+
+      if (imageResponse.ok) {
+        const imageBlob = await imageResponse.blob()
+        console.log("✅ Image downloaded successfully, size:", imageBlob.size)
+
+        // تبدیل blob به base64
+        const base64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader()
+          reader.onload = () => resolve(reader.result as string)
+          reader.onerror = reject
+          reader.readAsDataURL(imageBlob)
+        })
+
+        console.log("✅ Image converted to base64 successfully")
+        console.log("📏 Base64 length:", base64.length)
+
+        return {
+          imageUrl: base64,
+          success: true,
+        }
+      } else {
+        console.warn("⚠️ Direct download failed, returning original URL")
+        return {
+          imageUrl,
+          success: true,
+        }
+      }
+    } catch (downloadError) {
+      console.warn("⚠️ Download failed, returning original URL:", downloadError)
+      return {
+        imageUrl,
+        success: true,
+      }
+    }
+  } catch (error) {
+    console.error("❌ Error generating image:", error)
+    return {
+      imageUrl: "",
+      success: false,
+      error: error instanceof Error ? error.message : "خطای غیرمنتظره در تولید تصویر",
+    }
+  }
+}
+
 function createPrompt(request: CaptionRequest): string {
   const { topic, style = "casual", length = "medium", includeHashtags = true } = request
 
@@ -128,6 +285,23 @@ function createPrompt(request: CaptionRequest): string {
   return prompt
 }
 
+function createImagePrompt(userPrompt: string, style?: string): string {
+  const stylePrompts = {
+    realistic: "photorealistic, high quality, detailed, professional photography",
+    artistic: "artistic, creative, beautiful composition, aesthetic",
+    cartoon: "cartoon style, colorful, fun, animated style",
+    abstract: "abstract art, creative, modern, artistic interpretation",
+  }
+
+  const basePrompt = `Create a high-quality image for Instagram post: ${userPrompt}`
+  const styleAddition =
+      style && stylePrompts[style as keyof typeof stylePrompts]
+          ? `, ${stylePrompts[style as keyof typeof stylePrompts]}`
+          : ", high quality, Instagram-ready, visually appealing"
+
+  return `${basePrompt}${styleAddition}, square aspect ratio, vibrant colors, social media optimized`
+}
+
 // تابع کمکی برای دریافت موضوعات پیشنهادی
 export function getTopicSuggestions(category: string): string[] {
   const suggestions: Record<string, string[]> = {
@@ -141,6 +315,19 @@ export function getTopicSuggestions(category: string): string[] {
   }
 
   return suggestions[category] || ["موضوع عمومی", "تجربه شخصی", "نکات کاربردی"]
+}
+
+// پیشنهادات تولید تصویر
+export function getImagePromptSuggestions(topic: string): string[] {
+  const suggestions: Record<string, string[]> = {
+    sale: ["محصولات زیبا روی میز چوبی با نور طبیعی", "فروشگاه مدرن با محصولات رنگارنگ", "تخفیف و برچسب قیمت جذاب"],
+    food: ["غذای خوشمزه روی بشقاب زیبا", "آشپزخانه مدرن با مواد غذایی تازه", "میز شام رومانتیک با شمع"],
+    lifestyle: ["فضای آرام و مینیمال برای مدیتیشن", "صبحانه سالم روی تخت", "ورزش در طبیعت زیبا"],
+    travel: ["منظره زیبای طبیعی با آسمان آبی", "شهر قدیمی با معماری سنتی", "ساحل آرام با آب شفاف"],
+    fashion: ["لباس‌های شیک روی آویز", "اکسسوری‌های زیبا روی میز مرمری", "استایل خیابانی مدرن"],
+  }
+
+  return suggestions[topic] || ["تصویر زیبا و الهام‌بخش", "طراحی مدرن و رنگارنگ", "فضای خلاقانه و هنری"]
 }
 
 // تابع fallback برای زمانی که API کار نمی‌کند

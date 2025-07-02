@@ -29,7 +29,7 @@ export default function HomePage() {
                   <>
                     <div className="flex items-center gap-2">
                       <User className="h-4 w-4 text-gray-600" />
-                      <span className="text-gray-700">{user.user_metadata?.first_name || user.email?.split("@")[0]}</span>
+                      <span className="text-gray-700">{user.first_name || user.email?.split("@")[0]}</span>
                     </div>
                     <Button variant="outline" size="sm" onClick={handleSignOut}>
                       <LogOut className="h-4 w-4 mr-2" />
