@@ -6,11 +6,27 @@ import fs from "fs"
 
 // استفاده از متغیرهای محیطی
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-change-in-production"
-const DATABASE_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "app.db")
+
+// تعیین مسیر دیتابیس بر اساس محیط
+const getDatabasePath = () => {
+    if (process.env.VERCEL) {
+        // در Vercel از /tmp استفاده می‌کنیم
+        return "/tmp/app.db"
+    } else if (process.env.DATABASE_PATH) {
+        return process.env.DATABASE_PATH
+    } else {
+        // محیط توسعه
+        return path.join(process.cwd(), "data", "app.db")
+    }
+}
+
+const DATABASE_PATH = getDatabasePath()
 
 console.log("🔧 Database configuration:")
 console.log("📁 DATABASE_PATH:", DATABASE_PATH)
 console.log("🔑 JWT_SECRET exists:", !!process.env.JWT_SECRET)
+console.log("🌐 Environment:", process.env.NODE_ENV)
+console.log("☁️ Vercel:", !!process.env.VERCEL)
 
 // بررسی وجود کلید JWT
 if (!process.env.JWT_SECRET) {
@@ -18,8 +34,14 @@ if (!process.env.JWT_SECRET) {
     console.warn("⚠️  Please set JWT_SECRET in your .env.local file for security.")
 }
 
-// بررسی و ایجاد پوشه data
+// بررسی و ایجاد پوشه data (فقط در محیط توسعه)
 const ensureDataDirectory = () => {
+    if (process.env.VERCEL) {
+        // در Vercel نیازی به ایجاد پوشه نیست
+        console.log("☁️ Running on Vercel, using /tmp directory")
+        return
+    }
+
     const dataDir = path.dirname(DATABASE_PATH)
     console.log("📁 Checking data directory:", dataDir)
 
@@ -38,7 +60,12 @@ const getDatabase = () => {
     if (!db) {
         try {
             // بررسی اینکه در build time نباشیم
-            if (process.env.NODE_ENV === "production" && !process.env.VERCEL_URL && !process.env.DATABASE_URL) {
+            if (
+                process.env.NODE_ENV === "production" &&
+                !process.env.VERCEL &&
+                !process.env.DATABASE_URL &&
+                !process.env.RAILWAY_ENVIRONMENT
+            ) {
                 console.log("⚠️ Skipping database initialization during build")
                 return null
             }
@@ -46,10 +73,21 @@ const getDatabase = () => {
             ensureDataDirectory()
 
             console.log("🔄 Connecting to database...")
+
+            // در Vercel، اگر فایل وجود ندارد، آن را ایجاد می‌کنیم
+            if (process.env.VERCEL && !fs.existsSync(DATABASE_PATH)) {
+                console.log("☁️ Creating new database file in /tmp")
+            }
+
             db = new Database(DATABASE_PATH)
 
-            // تنظیم WAL mode برای بهبود عملکرد
-            db.pragma("journal_mode = WAL")
+            // تنظیم WAL mode برای بهبود عملکرد (فقط اگر امکان‌پذیر باشد)
+            try {
+                db.pragma("journal_mode = WAL")
+                console.log("✅ WAL mode enabled")
+            } catch (walError) {
+                console.log("⚠️ WAL mode not available, using default")
+            }
 
             console.log("✅ Database connected successfully at:", DATABASE_PATH)
 
@@ -62,7 +100,26 @@ const getDatabase = () => {
             initializeDatabase()
         } catch (error) {
             console.error("❌ Database connection failed:", error)
-            return null
+
+            // اگر در Vercel هستیم و خطا داریم، سعی می‌کنیم دوباره
+            if (process.env.VERCEL) {
+                console.log("☁️ Retrying database connection in Vercel...")
+                try {
+                    // پاک کردن فایل قبلی اگر وجود دارد
+                    if (fs.existsSync(DATABASE_PATH)) {
+                        fs.unlinkSync(DATABASE_PATH)
+                    }
+
+                    db = new Database(DATABASE_PATH)
+                    console.log("✅ Database reconnected successfully")
+                    initializeDatabase()
+                } catch (retryError) {
+                    console.error("❌ Database retry failed:", retryError)
+                    return null
+                }
+            } else {
+                return null
+            }
         }
     }
     return db
@@ -71,7 +128,10 @@ const getDatabase = () => {
 // ایجاد جداول
 export function initializeDatabase() {
     const database = getDatabase()
-    if (!database) return
+    if (!database) {
+        console.error("❌ Cannot initialize database - database not available")
+        return
+    }
 
     try {
         console.log("🔄 Initializing database tables...")
@@ -115,14 +175,14 @@ export function initializeDatabase() {
 
         // جدول نشست‌ها (sessions)
         database.exec(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      )
-    `)
+            CREATE TABLE IF NOT EXISTS sessions (
+                                                    id TEXT PRIMARY KEY,
+                                                    user_id INTEGER NOT NULL,
+                                                    expires_at DATETIME NOT NULL,
+                                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                                    FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                )
+        `)
         console.log("✅ Sessions table created/verified")
 
         // بررسی تعداد کاربران موجود
@@ -481,9 +541,9 @@ export class PostService {
             // آماده‌سازی statement
             console.log("🔄 Preparing insert statement...")
             const stmt = database.prepare(`
-        INSERT INTO posts (user_id, title, template_id, image_url, caption, topic)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
+                INSERT INTO posts (user_id, title, template_id, image_url, caption, topic)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `)
 
             console.log("🔄 Executing insert statement...")
             console.log("📝 Values to insert:", [
