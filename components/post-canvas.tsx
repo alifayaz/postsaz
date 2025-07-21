@@ -1,20 +1,34 @@
 "use client"
-import { useRef, useEffect } from "react"
+
+import { useRef, useEffect, forwardRef, useImperativeHandle } from "react"
 
 interface PostCanvasProps {
-  template: {
-    id: string
-    name: string
-    preview: string
-    style: string
-  }
-  image: string | null
+  template: string
+  topic: string
   caption: string
-  onCanvasReady: (canvas: HTMLCanvasElement) => void
+  imageUrl?: string
 }
 
-export function PostCanvas({ template, image, caption, onCanvasReady }: PostCanvasProps) {
+export interface PostCanvasRef {
+  downloadImage: () => void
+  getCanvas: () => HTMLCanvasElement | null
+}
+
+export const PostCanvas = forwardRef<PostCanvasRef, PostCanvasProps>(({ template, topic, caption, imageUrl }, ref) => {
   const canvasRef = useRef<HTMLCanvasElement>(null)
+
+  useImperativeHandle(ref, () => ({
+    downloadImage: () => {
+      const canvas = canvasRef.current
+      if (!canvas) return
+
+      const link = document.createElement("a")
+      link.download = `post-${Date.now()}.png`
+      link.href = canvas.toDataURL("image/png")
+      link.click()
+    },
+    getCanvas: () => canvasRef.current,
+  }))
 
   useEffect(() => {
     const canvas = canvasRef.current
@@ -23,7 +37,7 @@ export function PostCanvas({ template, image, caption, onCanvasReady }: PostCanv
     const ctx = canvas.getContext("2d")
     if (!ctx) return
 
-    // تنظیم اندازه canvas (1080x1350 برای پست اینستاگرام با کپشن)
+    // تنظیم اندازه canvas برای اینستاگرام (1080x1350)
     canvas.width = 1080
     canvas.height = 1350
 
@@ -34,7 +48,7 @@ export function PostCanvas({ template, image, caption, onCanvasReady }: PostCanv
     drawBackground(ctx, template, canvas.width, canvas.height)
 
     // رسم تصویر اگر موجود باشد
-    if (image) {
+    if (imageUrl) {
       const img = new Image()
       img.crossOrigin = "anonymous"
       img.onload = () => {
@@ -63,36 +77,42 @@ export function PostCanvas({ template, image, caption, onCanvasReady }: PostCanv
 
         // اضافه کردن watermark
         addWatermark(ctx, canvas.width, canvas.height)
-
-        onCanvasReady(canvas)
       }
       img.onerror = () => {
         console.error("Error loading image")
         // در صورت خطا، فقط پس‌زمینه و کپشن
         drawCaption(ctx, caption, canvas.width, canvas.height)
         addWatermark(ctx, canvas.width, canvas.height)
-        onCanvasReady(canvas)
       }
-      img.src = image
+      img.src = imageUrl
     } else {
       // اگر تصویری نیست، فقط پس‌زمینه و کپشن
-      drawPlaceholder(ctx, template, 1080)
+      drawPlaceholder(ctx, template, topic, 1080)
       drawCaption(ctx, caption, canvas.width, canvas.height)
       addWatermark(ctx, canvas.width, canvas.height)
-      onCanvasReady(canvas)
     }
-  }, [template, image, caption, onCanvasReady])
+  }, [template, topic, caption, imageUrl])
 
-  return <canvas ref={canvasRef} className="hidden" />
-}
+  return (
+      <div className="w-full h-full flex items-center justify-center">
+        <canvas
+            ref={canvasRef}
+            className="max-w-full max-h-full object-contain rounded-lg shadow-lg"
+            style={{ aspectRatio: "1080/1350" }}
+        />
+      </div>
+  )
+})
 
-function drawBackground(ctx: CanvasRenderingContext2D, template: any, width: number, height: number) {
+PostCanvas.displayName = "PostCanvas"
+
+function drawBackground(ctx: CanvasRenderingContext2D, template: string, width: number, height: number) {
   // پس‌زمینه سفید برای کل canvas
   ctx.fillStyle = "#FFFFFF"
   ctx.fillRect(0, 0, width, height)
 
   // پس‌زمینه قالب فقط برای قسمت تصویر (1080x1080)
-  switch (template.id) {
+  switch (template) {
     case "modern":
       const modernGradient = ctx.createLinearGradient(0, 0, width, 1080)
       modernGradient.addColorStop(0, "#3B82F6") // blue-500
@@ -107,30 +127,57 @@ function drawBackground(ctx: CanvasRenderingContext2D, template: any, width: num
       ctx.fillStyle = minimalGradient
       break
 
-    case "vibrant":
-      const vibrantGradient = ctx.createLinearGradient(0, 0, width, 1080)
-      vibrantGradient.addColorStop(0, "#FB923C") // orange-400
-      vibrantGradient.addColorStop(1, "#EC4899") // pink-500
-      ctx.fillStyle = vibrantGradient
+    case "colorful":
+      const colorfulGradient = ctx.createLinearGradient(0, 0, width, 1080)
+      colorfulGradient.addColorStop(0, "#FB923C") // orange-400
+      colorfulGradient.addColorStop(1, "#EC4899") // pink-500
+      ctx.fillStyle = colorfulGradient
+      break
+
+    case "elegant":
+      const elegantGradient = ctx.createLinearGradient(0, 0, width, 1080)
+      elegantGradient.addColorStop(0, "#1F2937") // gray-800
+      elegantGradient.addColorStop(1, "#374151") // gray-700
+      ctx.fillStyle = elegantGradient
+      break
+
+    case "bold":
+      const boldGradient = ctx.createLinearGradient(0, 0, width, 1080)
+      boldGradient.addColorStop(0, "#DC2626") // red-600
+      boldGradient.addColorStop(1, "#7C2D12") // orange-900
+      ctx.fillStyle = boldGradient
+      break
+
+    case "nature":
+      const natureGradient = ctx.createLinearGradient(0, 0, width, 1080)
+      natureGradient.addColorStop(0, "#059669") // emerald-600
+      natureGradient.addColorStop(1, "#065F46") // emerald-800
+      ctx.fillStyle = natureGradient
       break
 
     default:
       ctx.fillStyle = "#F8F9FA"
   }
 
-  // رسم پس‌زمینه قالب فقط در قس��ت تصویر
+  // رسم پس‌زمینه قالب فقط در قسمت تصویر
   ctx.fillRect(0, 0, width, 1080)
 }
 
-function drawPlaceholder(ctx: CanvasRenderingContext2D, template: any, size: number) {
+function drawPlaceholder(ctx: CanvasRenderingContext2D, template: string, topic: string, size: number) {
   // اگر تصویری نیست، placeholder نمایش دهید
   ctx.fillStyle = "rgba(255, 255, 255, 0.3)"
-  ctx.fillRect(size / 2 - 100, size / 2 - 50, 200, 100)
+  ctx.fillRect(size / 2 - 200, size / 2 - 100, 400, 200)
 
-  ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
-  ctx.font = "bold 24px Arial"
+  ctx.fillStyle = "rgba(255, 255, 255, 0.9)"
+  ctx.font = "bold 48px Arial"
   ctx.textAlign = "center"
-  ctx.fillText("پُست‌ساز", size / 2, size / 2)
+  ctx.fillText("پُست‌ساز", size / 2, size / 2 - 20)
+
+  if (topic) {
+    ctx.font = "32px Arial"
+    ctx.fillStyle = "rgba(255, 255, 255, 0.8)"
+    ctx.fillText(topic, size / 2, size / 2 + 40)
+  }
 }
 
 function drawCaption(ctx: CanvasRenderingContext2D, caption: string, width: number, height: number) {
@@ -159,7 +206,7 @@ function drawCaption(ctx: CanvasRenderingContext2D, caption: string, width: numb
   let currentY = captionArea.y + 40
 
   // رسم هر خط
-  lines.forEach((line, index) => {
+  lines.forEach((line) => {
     if (currentY + lineHeight <= captionArea.y + captionArea.height - 60) {
       // بررسی اینکه آیا خط هشتگ است یا نه
       if (line.trim().startsWith("#")) {
