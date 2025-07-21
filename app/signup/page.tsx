@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Instagram, ArrowRight, Loader2 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -26,7 +25,7 @@ export default function SignupPage() {
   const [error, setError] = useState("")
   const [success, setSuccess] = useState("")
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, signUp } = useAuth()
 
   // Redirect if already logged in
   useEffect(() => {
@@ -47,6 +46,13 @@ export default function SignupPage() {
     e.preventDefault()
     setError("")
     setSuccess("")
+
+    console.log("🔄 Form submitted with data:", {
+      firstName: formData.firstName,
+      lastName: formData.lastName,
+      email: formData.email,
+      acceptTerms: formData.acceptTerms,
+    })
 
     // Validation
     if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
@@ -72,35 +78,24 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signUp({
+      console.log("🔄 Calling signUp function...")
+
+      await signUp({
         email: formData.email,
         password: formData.password,
-        options: {
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            full_name: `${formData.firstName} ${formData.lastName}`,
-          },
-        },
+        firstName: formData.firstName,
+        lastName: formData.lastName,
       })
 
-      if (error) {
-        setError(
-            error.message === "User already registered"
-                ? "این ایمیل قبلاً ثبت شده است"
-                : "خطا در ثبت نام: " + error.message,
-        )
-        return
-      }
+      console.log("✅ SignUp completed successfully")
+      setSuccess("ثبت نام با موفقیت انجام شد! در حال انتقال...")
 
-      if (data.user) {
-        setSuccess("ثبت نام با موفقیت انجام شد! لطفاً ایمیل خود را چک کنید.")
-        setTimeout(() => {
-          router.push("/login")
-        }, 2000)
-      }
-    } catch (err) {
-      setError("خطای غیرمنتظره رخ داد")
+      setTimeout(() => {
+        router.push("/dashboard")
+      }, 1500)
+    } catch (err: any) {
+      console.error("❌ SignUp failed:", err)
+      setError(err.message || "خطای غیرمنتظره رخ داد")
     } finally {
       setLoading(false)
     }

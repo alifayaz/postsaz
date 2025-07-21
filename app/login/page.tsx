@@ -9,7 +9,6 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Instagram, ArrowRight, Loader2 } from "lucide-react"
-import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 
@@ -21,7 +20,7 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const router = useRouter()
-  const { user, loading: authLoading } = useAuth()
+  const { user, loading: authLoading, signIn } = useAuth()
 
   // Redirect if already logged in
   useEffect(() => {
@@ -50,25 +49,15 @@ export default function LoginPage() {
     setLoading(true)
 
     try {
-      const { data, error } = await supabase.auth.signInWithPassword({
-        email: formData.email,
-        password: formData.password,
-      })
+      console.log("🔄 Attempting to sign in:", formData.email)
 
-      if (error) {
-        setError(
-            error.message === "Invalid login credentials"
-                ? "ایمیل یا رمز عبور اشتباه است"
-                : "خطا در ورود: " + error.message,
-        )
-        return
-      }
+      await signIn(formData.email, formData.password)
 
-      if (data.user) {
-        router.push("/dashboard")
-      }
-    } catch (err) {
-      setError("خطای غیرمنتظره رخ داد")
+      console.log("✅ Sign in successful, redirecting...")
+      router.push("/dashboard")
+    } catch (err: any) {
+      console.error("❌ Sign in failed:", err)
+      setError(err.message || "خطای غیرمنتظره رخ داد")
     } finally {
       setLoading(false)
     }
