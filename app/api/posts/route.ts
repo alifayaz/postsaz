@@ -36,7 +36,12 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     try {
         console.log("🔄 POST /api/posts called")
+        console.log("🌐 Request URL:", request.url)
+        console.log("🌐 Request method:", request.method)
+        console.log("🌐 Request headers:", Object.fromEntries(request.headers.entries()))
 
+        // بررسی احراز هویت
+        console.log("🔄 Checking authentication...")
         const user = await AuthService.getCurrentUser()
         if (!user) {
             console.log("❌ No authenticated user")
@@ -45,11 +50,21 @@ export async function POST(request: NextRequest) {
 
         console.log("✅ User authenticated:", user.email, "ID:", user.id)
 
-        const body = await request.json()
-        console.log("📝 Request body:", body)
+        // خواندن body
+        console.log("🔄 Reading request body...")
+        let body
+        try {
+            body = await request.json()
+            console.log("📝 Request body received:", body)
+        } catch (bodyError) {
+            console.error("❌ Failed to parse request body:", bodyError)
+            return NextResponse.json({ error: "خطا در خواندن داده‌های درخواست" }, { status: 400 })
+        }
 
         const { title, template_id, image_url, caption, topic } = body
 
+        // اعتبارسنجی
+        console.log("🔄 Validating request data...")
         if (!template_id) {
             console.log("❌ Missing template_id")
             return NextResponse.json({ error: "شناسه قالب الزامی است" }, { status: 400 })
@@ -58,6 +73,18 @@ export async function POST(request: NextRequest) {
         if (!caption) {
             console.log("❌ Missing caption")
             return NextResponse.json({ error: "کپشن الزامی است" }, { status: 400 })
+        }
+
+        console.log("✅ Validation passed")
+
+        // آماده‌سازی داده‌های پست
+        const postData = {
+            user_id: user.id,
+            title,
+            template_id,
+            image_url,
+            caption,
+            topic,
         }
 
         console.log("🔄 Creating post with data:", {
@@ -69,30 +96,31 @@ export async function POST(request: NextRequest) {
             topic,
         })
 
-        const post = PostService.createPost({
-            user_id: user.id,
-            title,
-            template_id,
-            image_url,
-            caption,
-            topic,
-        })
-
+        // ایجاد پست
+        console.log("🔄 Calling PostService.createPost...")
+        const post = PostService.createPost(postData)
         console.log("✅ Post created successfully:", post.id)
 
-        return NextResponse.json({
+        // پاسخ موفق
+        const response = {
             success: true,
             post,
             message: "پست با موفقیت ایجاد شد",
-        })
+        }
+
+        console.log("✅ Sending success response:", response)
+        return NextResponse.json(response)
     } catch (error: any) {
         console.error("❌ Create post API error:", error)
-        return NextResponse.json(
-            {
-                error: error.message || "خطا در ایجاد پست",
-                details: error.stack,
-            },
-            { status: 500 },
-        )
+        console.error("❌ Error stack:", error.stack)
+
+        const errorResponse = {
+            success: false,
+            error: error.message || "خطا در ایجاد پست",
+            details: error.stack,
+        }
+
+        console.log("❌ Sending error response:", errorResponse)
+        return NextResponse.json(errorResponse, { status: 500 })
     }
 }

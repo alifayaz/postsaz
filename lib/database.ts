@@ -1,16 +1,47 @@
 import Database from "better-sqlite3"
 import { hash, compare } from "bcryptjs"
 import { sign, verify } from "jsonwebtoken"
-import path from "path"
-import fs from "fs"
+import { join } from "path"
+import { existsSync, mkdirSync } from "fs"
 
 // استفاده از متغیرهای محیطی
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-secret-key-change-in-production"
-const DATABASE_PATH = process.env.DATABASE_PATH || path.join(process.cwd(), "data", "app.db")
+
+// تشخیص محیط اجرا
+const isProduction = process.env.NODE_ENV === "production"
+const isVercel = process.env.VERCEL === "1"
+
+// مسیر دیتابیس بر اساس محیط
+const getDatabasePath = () => {
+    if (isVercel) {
+        // در Vercel از /tmp استفاده می‌کنیم
+        const tmpDir = "/tmp"
+        if (!existsSync(tmpDir)) {
+            mkdirSync(tmpDir, { recursive: true })
+        }
+        return join(tmpDir, "posts.db")
+    } else if (isProduction) {
+        // در سایر محیط‌های production
+        const dataDir = process.env.DATABASE_PATH || "./data"
+        if (!existsSync(dataDir)) {
+            mkdirSync(dataDir, { recursive: true })
+        }
+        return join(dataDir, "posts.db")
+    } else {
+        // در محیط development
+        const dataDir = "./data"
+        if (!existsSync(dataDir)) {
+            mkdirSync(dataDir, { recursive: true })
+        }
+        return join(dataDir, "posts.db")
+    }
+}
+
+let db: Database.Database | null = null
 
 console.log("🔧 Database configuration:")
-console.log("📁 DATABASE_PATH:", DATABASE_PATH)
-console.log("🔑 JWT_SECRET exists:", !!process.env.JWT_SECRET)
+console.log("🌍 Environment:", process.env.NODE_ENV)
+console.log("☁️ Vercel:", !!process.env.VERCEL)
 
 // بررسی وجود کلید JWT
 if (!process.env.JWT_SECRET) {
@@ -18,127 +49,183 @@ if (!process.env.JWT_SECRET) {
     console.warn("⚠️  Please set JWT_SECRET in your .env.local file for security.")
 }
 
-// بررسی و ایجاد پوشه data
-const ensureDataDirectory = () => {
-    const dataDir = path.dirname(DATABASE_PATH)
-    console.log("📁 Checking data directory:", dataDir)
-
-    if (!fs.existsSync(dataDir)) {
-        console.log("📁 Creating data directory:", dataDir)
-        fs.mkdirSync(dataDir, { recursive: true })
-    } else {
-        console.log("✅ Data directory exists")
-    }
-}
-
-// ایجاد دیتابیس - فقط در runtime
-let db: Database.Database | null = null
-
-const getDatabase = () => {
+// اتصال به دیتابیس
+export function getDatabase(): Database.Database {
     if (!db) {
         try {
-            // بررسی اینکه در build time نباشیم
-            if (process.env.NODE_ENV === "production" && !process.env.VERCEL_URL && !process.env.DATABASE_URL) {
-                console.log("⚠️ Skipping database initialization during build")
-                return null
-            }
+            const dbPath = getDatabasePath()
+            console.log(`📁 Database path: ${dbPath}`)
+            console.log(`🌍 Environment: ${isProduction ? "production" : "development"}`)
+            console.log(`☁️ Vercel: ${isVercel ? "yes" : "no"}`)
 
-            ensureDataDirectory()
+            db = new Database(dbPath)
 
-            console.log("🔄 Connecting to database...")
-            db = new Database(DATABASE_PATH)
-
-            // تنظیم WAL mode برای بهبود عملکرد
+            // تنظیمات بهینه‌سازی
             db.pragma("journal_mode = WAL")
+            db.pragma("synchronous = NORMAL")
+            db.pragma("cache_size = 1000")
+            db.pragma("temp_store = MEMORY")
 
-            console.log("✅ Database connected successfully at:", DATABASE_PATH)
+            console.log("✅ Database connected successfully")
 
-            // بررسی اتصال
-            const testQuery = db.prepare("SELECT 1 as test")
-            const testResult = testQuery.get()
-            console.log("✅ Database connection test result:", testResult)
-
-            // راه‌اندازی جداول
-            initializeDatabase()
+            // ایجاد جداول
+            initializeTables()
         } catch (error) {
             console.error("❌ Database connection failed:", error)
-            return null
+            throw new Error(`Database connection failed: ${error}`)
         }
     }
+
     return db
 }
 
 // ایجاد جداول
-export function initializeDatabase() {
-    const database = getDatabase()
-    if (!database) return
+function initializeTables() {
+    if (!db) return
 
     try {
-        console.log("🔄 Initializing database tables...")
-
         // جدول کاربران
-        database.exec(`
+        db.exec(`
             CREATE TABLE IF NOT EXISTS users (
                                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                                                  email TEXT UNIQUE NOT NULL,
-                                                 password TEXT NOT NULL,
+                                                 password_hash TEXT NOT NULL,
                                                  first_name TEXT,
                                                  last_name TEXT,
-                                                 full_name TEXT,
-                                                 avatar_url TEXT,
                                                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                                                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         `)
-        console.log("✅ Users table created/verified")
 
-        // جدول پست‌ها با بررسی دقیق‌تر
-        database.exec(`
+        // جدول پست‌ها
+        db.exec(`
             CREATE TABLE IF NOT EXISTS posts (
                                                  id INTEGER PRIMARY KEY AUTOINCREMENT,
                                                  user_id INTEGER NOT NULL,
-                                                 title TEXT,
+                                                 title TEXT NOT NULL,
                                                  template_id TEXT NOT NULL,
                                                  image_url TEXT,
-                                                 caption TEXT,
+                                                 caption TEXT NOT NULL,
                                                  topic TEXT,
                                                  created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                                                  updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                                                 FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
+                                                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
                 )
         `)
-        console.log("✅ Posts table created/verified")
 
-        // بررسی ساختار جدول posts
-        const postsTableInfo = database.prepare("PRAGMA table_info(posts)").all()
-        console.log("📋 Posts table structure:", postsTableInfo)
+        // جدول sessions
+        db.exec(`
+            CREATE TABLE IF NOT EXISTS sessions (
+                                                    id TEXT PRIMARY KEY,
+                                                    user_id INTEGER NOT NULL,
+                                                    expires_at DATETIME NOT NULL,
+                                                    created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                                                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                )
+        `)
 
-        // جدول نشست‌ها (sessions)
-        database.exec(`
-      CREATE TABLE IF NOT EXISTS sessions (
-        id TEXT PRIMARY KEY,
-        user_id INTEGER NOT NULL,
-        expires_at DATETIME NOT NULL,
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
-      )
+        // ایندکس‌ها
+        db.exec(`
+      CREATE INDEX IF NOT EXISTS idx_posts_user_id ON posts(user_id);
+      CREATE INDEX IF NOT EXISTS idx_posts_created_at ON posts(created_at);
+      CREATE INDEX IF NOT EXISTS idx_users_email ON users(email);
     `)
-        console.log("✅ Sessions table created/verified")
 
-        // بررسی تعداد کاربران موجود
-        const userCountQuery = database.prepare("SELECT COUNT(*) as count FROM users")
-        const userCount = userCountQuery.get() as { count: number }
-        console.log("📊 Current users count:", userCount.count)
-
-        // بررسی تعداد پست‌ها موجود
-        const postCountQuery = database.prepare("SELECT COUNT(*) as count FROM posts")
-        const postCount = postCountQuery.get() as { count: number }
-        console.log("📊 Current posts count:", postCount.count)
-
-        console.log("✅ Database initialization completed successfully")
+        console.log("✅ Database tables initialized")
     } catch (error) {
-        console.error("❌ Database initialization failed:", error)
+        console.error("❌ Table initialization failed:", error)
         throw error
+    }
+}
+
+// بستن اتصال دیتابیس
+export function closeDatabase() {
+    if (db) {
+        try {
+            db.close()
+            db = null
+            console.log("✅ Database connection closed")
+        } catch (error) {
+            console.error("❌ Error closing database:", error)
+        }
+    }
+}
+
+// تابع کمکی برای اجرای query با retry
+export function executeQuery<T = any>(query: string, params: any[] = [], retries = 3): T {
+    let lastError: Error | null = null
+
+    for (let i = 0; i < retries; i++) {
+        try {
+            const database = getDatabase()
+            const stmt = database.prepare(query)
+
+            if (query.trim().toLowerCase().startsWith("select")) {
+                return stmt.all(params) as T
+            } else {
+                return stmt.run(params) as T
+            }
+        } catch (error) {
+            lastError = error as Error
+            console.error(`❌ Query attempt ${i + 1} failed:`, error)
+
+            // اگر دیتابیس قفل شده، کمی صبر کنیم
+            if (error instanceof Error && error.message.includes("SQLITE_BUSY")) {
+                setTimeout(() => {}, 100 * (i + 1))
+                continue
+            }
+
+            // برای سایر خطاها، دوباره تلاش نکنیم
+            break
+        }
+    }
+
+    throw lastError || new Error("Query failed after retries")
+}
+
+// تابع کمکی برای اجرای transaction - حل مشکل TypeScript
+export function executeTransaction<T>(callback: (db: Database.Database) => T): T {
+    const database = getDatabase()
+
+    // استفاده از transaction به صورت صحیح
+    const transaction = database.transaction((db: Database.Database) => {
+        return callback(db)
+    })
+
+    return transaction(database)
+}
+
+// بررسی وضعیت دیتابیس
+export function checkDatabaseHealth(): {
+    connected: boolean
+    path: string
+    tables: string[]
+    error?: string
+} {
+    try {
+        const database = getDatabase()
+        const dbPath = getDatabasePath()
+
+        // بررسی جداول موجود
+        const tables = database
+            .prepare(`
+                SELECT name FROM sqlite_master
+                WHERE type='table' AND name NOT LIKE 'sqlite_%'
+            `)
+            .all() as { name: string }[]
+
+        return {
+            connected: true,
+            path: dbPath,
+            tables: tables.map((t) => t.name),
+        }
+    } catch (error) {
+        return {
+            connected: false,
+            path: getDatabasePath(),
+            tables: [],
+            error: error instanceof Error ? error.message : "Unknown error",
+        }
     }
 }
 
@@ -148,8 +235,6 @@ export interface User {
     email: string
     first_name?: string
     last_name?: string
-    full_name?: string
-    avatar_url?: string
     created_at: string
     updated_at: string
 }
@@ -157,10 +242,10 @@ export interface User {
 export interface Post {
     id: number
     user_id: number
-    title?: string
+    title: string
     template_id: string
     image_url?: string
-    caption?: string
+    caption: string
     topic?: string
     created_at: string
     updated_at: string
@@ -201,31 +286,19 @@ export class UserService {
             const hashedPassword = await hash(userData.password, 12)
             console.log("✅ Password hashed successfully")
 
-            const full_name =
-                userData.first_name && userData.last_name
-                    ? `${userData.first_name} ${userData.last_name}`
-                    : userData.first_name || userData.last_name || ""
-
             console.log("🔄 Preparing insert statement...")
             const stmt = database.prepare(`
-                INSERT INTO users (email, password, first_name, last_name, full_name)
-                VALUES (?, ?, ?, ?, ?)
-            `)
+        INSERT INTO users (email, password_hash, first_name, last_name)
+        VALUES (?, ?, ?, ?)
+      `)
 
             console.log("🔄 Executing insert with data:", {
                 email: userData.email,
                 first_name: userData.first_name,
                 last_name: userData.last_name,
-                full_name: full_name,
             })
 
-            const result = stmt.run(
-                userData.email,
-                hashedPassword,
-                userData.first_name || null,
-                userData.last_name || null,
-                full_name,
-            )
+            const result = stmt.run(userData.email, hashedPassword, userData.first_name || null, userData.last_name || null)
 
             console.log("✅ Insert result:", result)
             console.log("✅ New user ID:", result.lastInsertRowid)
@@ -261,7 +334,7 @@ export class UserService {
             }
 
             console.log("✅ User found, checking password...")
-            const isValidPassword = await compare(password, user.password)
+            const isValidPassword = await compare(password, user.password_hash)
             if (!isValidPassword) {
                 console.log("❌ Invalid password for:", email)
                 return null
@@ -269,7 +342,7 @@ export class UserService {
 
             console.log("✅ Authentication successful for:", email)
             // حذف پسورد از نتیجه
-            const { password: _, ...userWithoutPassword } = user
+            const { password_hash: _, ...userWithoutPassword } = user
             return userWithoutPassword as User
         } catch (error) {
             console.error("❌ Authentication error:", error)
@@ -287,7 +360,7 @@ export class UserService {
             console.log("🔄 Getting user by ID:", id)
 
             const stmt = database.prepare(
-                "SELECT id, email, first_name, last_name, full_name, avatar_url, created_at, updated_at FROM users WHERE id = ?",
+                "SELECT id, email, first_name, last_name, created_at, updated_at FROM users WHERE id = ?",
             )
             const user = stmt.get(id) as User
 
@@ -314,7 +387,7 @@ export class UserService {
             console.log("🔄 Getting user by email:", email)
 
             const stmt = database.prepare(
-                "SELECT id, email, first_name, last_name, full_name, avatar_url, created_at, updated_at FROM users WHERE email = ?",
+                "SELECT id, email, first_name, last_name, created_at, updated_at FROM users WHERE email = ?",
             )
             const user = (stmt.get(email) as User) || null
 
@@ -481,26 +554,17 @@ export class PostService {
             // آماده‌سازی statement
             console.log("🔄 Preparing insert statement...")
             const stmt = database.prepare(`
-        INSERT INTO posts (user_id, title, template_id, image_url, caption, topic)
-        VALUES (?, ?, ?, ?, ?, ?)
-      `)
+                INSERT INTO posts (user_id, title, template_id, image_url, caption, topic)
+                VALUES (?, ?, ?, ?, ?, ?)
+            `)
 
             console.log("🔄 Executing insert statement...")
-            console.log("📝 Values to insert:", [
-                postData.user_id,
-                postData.title || null,
-                postData.template_id,
-                postData.image_url || null,
-                postData.caption || null,
-                postData.topic || null,
-            ])
-
             const result = stmt.run(
                 postData.user_id,
-                postData.title || null,
+                postData.title || "پست جدید",
                 postData.template_id,
                 postData.image_url || null,
-                postData.caption || null,
+                postData.caption || "کپشن پیش‌فرض",
                 postData.topic || null,
             )
 

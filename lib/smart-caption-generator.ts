@@ -1,131 +1,221 @@
-// سیستم هوشمند تولید کپشن که از چندین منبع استفاده می‌کند
+import { generateCaption as avalGenerateCaption, testAvalAI } from "./aval-ai"
 
-import { generateCaption as generateAvalAICaption } from "./aval-ai"
-import { generateCaption as generateFallbackCaption } from "./fallback-caption-generator"
+// انواع مختلف سرویس‌های AI
+export type AIProvider = "aval" | "gemini" | "huggingface" | "offline"
 
-export interface CaptionRequest {
+// تنظیمات تولید کپشن
+export interface SmartCaptionOptions {
     topic: string
     style?: "casual" | "professional" | "creative" | "motivational"
+    language?: "fa" | "en"
     length?: "short" | "medium" | "long"
-    includeHashtags?: boolean
-    language?: string
+    provider?: AIProvider
+    fallbackToOffline?: boolean
 }
 
-export interface CaptionResponse {
+// نتیجه تولید کپشن
+export interface CaptionResult {
     caption: string
-    hashtags?: string[]
+    provider: AIProvider
     success: boolean
     error?: string
-    source?: "aval-ai" | "fallback" | "offline"
+    generationTime: number
 }
 
-// تابع اصلی که بهترین منبع را انتخاب می‌کند
-export async function generateSmartCaption(request: CaptionRequest): Promise<CaptionResponse> {
-    console.log("Starting smart caption generation for:", request.topic)
+// کلاس اصلی برای تولید هوشمند کپشن
+export class SmartCaptionGenerator {
+    private static readonly DEFAULT_OPTIONS: Partial<SmartCaptionOptions> = {
+        style: "casual",
+        language: "fa",
+        length: "medium",
+        provider: "aval",
+        fallbackToOffline: true,
+    }
 
-    // مرحله 1: تلاش با Aval AI
-    try {
-        console.log("Trying Aval AI API...")
-        const avalResult = await generateAvalAICaption(request)
+    // تولید کپشن با سیستم fallback
+    static async generateCaption(options: SmartCaptionOptions): Promise<CaptionResult> {
+        const startTime = Date.now()
+        const finalOptions = { ...this.DEFAULT_OPTIONS, ...options }
 
-        if (avalResult.success && avalResult.caption && avalResult.caption.length > 20) {
-            console.log("Aval AI API succeeded")
-            return {
-                ...avalResult,
-                source: "aval-ai",
+        console.log("🧠 SmartCaptionGenerator started with options:", finalOptions)
+
+        // تعیین ترتیب سرویس‌ها بر اساس اولویت
+        const providers = this.getProviderPriority(finalOptions.provider!)
+
+        for (const provider of providers) {
+            try {
+                console.log(`🔄 Trying provider: ${provider}`)
+
+                const caption = await this.generateWithProvider(provider, finalOptions)
+                const generationTime = Date.now() - startTime
+
+                console.log(`✅ Caption generated successfully with ${provider} in ${generationTime}ms`)
+
+                return {
+                    caption,
+                    provider,
+                    success: true,
+                    generationTime,
+                }
+            } catch (error) {
+                console.warn(`⚠️ Provider ${provider} failed:`, error)
+                continue
             }
-        } else {
-            console.log("Aval AI API failed or returned poor result:", avalResult.error)
         }
-    } catch (error) {
-        console.log("Aval AI API threw error:", error)
+
+        // اگر همه سرویس‌ها شکست خوردند
+        const generationTime = Date.now() - startTime
+        const fallbackCaption = this.getFallbackCaption(finalOptions.topic, finalOptions.style!)
+
+        console.log("❌ All providers failed, using fallback caption")
+
+        return {
+            caption: fallbackCaption,
+            provider: "offline",
+            success: false,
+            error: "All AI providers failed",
+            generationTime,
+        }
     }
 
-    // مرحله 2: استفاده از سیستم پشتیبان
-    console.log("Using fallback caption generator...")
-    try {
-        const fallbackResult = await generateFallbackCaption(request)
+    // تولید کپشن با سرویس مشخص
+    private static async generateWithProvider(provider: AIProvider, options: SmartCaptionOptions): Promise<string> {
+        switch (provider) {
+            case "aval":
+                console.log("🔄 Trying Aval AI...")
+                try {
+                    const result = await avalGenerateCaption({
+                        topic: options.topic,
+                        style: options.style,
+                        language: options.language,
+                        length: options.length,
+                    })
+                    console.log("✅ Aval AI succeeded")
+                    return result
+                } catch (error) {
+                    console.error("❌ Aval AI failed:", error)
+                    throw error
+                }
 
-        if (fallbackResult.success) {
-            console.log("Fallback caption generator succeeded")
-            return {
-                ...fallbackResult,
-                source: "fallback",
-                error: "API در دسترس نبود، از سیستم پشتیبان استفاده شد",
-            }
+            case "gemini":
+                console.log("🔄 Trying Gemini...")
+                // اگر gemini موجود باشد
+                throw new Error("Gemini provider not implemented yet")
+
+            case "huggingface":
+                console.log("🔄 Trying Hugging Face...")
+                // اگر huggingface موجود باشد
+                throw new Error("Huggingface provider not implemented yet")
+
+            case "offline":
+                console.log("🔄 Using offline generation...")
+                return this.generateOfflineCaption(options.topic, options.style || "casual")
+
+            default:
+                throw new Error(`Unknown provider: ${provider}`)
         }
-    } catch (error) {
-        console.log("Fallback caption generator failed:", error)
     }
 
-    // مرحله 3: کپشن‌های از پیش تعریف شده (آخرین راه‌حل)
-    console.log("Using predefined captions as last resort...")
-    const predefinedCaptions = getPredefinedCaptions(request.topic)
-    const randomCaption = predefinedCaptions[Math.floor(Math.random() * predefinedCaptions.length)]
+    // تولید کپشن آفلاین
+    private static generateOfflineCaption(topic: string, style: string): string {
+        const fallbackCaptions = {
+            casual: [
+                `${topic} 🌟\n\nامروز روز خوبی برای شروع چیزهای جدید است! ✨\n\n#${topic.replace(/\s+/g, "_")} #انگیزه #زندگی`,
+                `درباره ${topic} 💭\n\nگاهی کوچک‌ترین چیزها بزرگ‌ترین تأثیر را دارند 🌱\n\n#الهام #${topic.replace(/\s+/g, "_")}`,
+                `${topic} در زندگی روزمره 🌈\n\nهر روز فرصت جدیدی برای یادگیری است 📚\n\n#یادگیری #${topic.replace(/\s+/g, "_")}`,
+            ],
+            professional: [
+                `${topic}: نگاهی حرفه‌ای 💼\n\nموفقیت نتیجه برنامه‌ریزی دقیق و اجرای مستمر است.\n\n#حرفه‌ای #${topic.replace(/\s+/g, "_")} #موفقیت`,
+                `تحلیل ${topic} 📊\n\nدر دنیای امروز، دانش قدرت است و به‌روزرسانی مستمر ضروری.\n\n#تحلیل #${topic.replace(/\s+/g, "_")} #دانش`,
+            ],
+            creative: [
+                `${topic} از نگاه هنری 🎨\n\nخلاقیت مرز ندارد، فقط باید جرأت کشف کردن داشته باشیم! ✨\n\n#خلاقیت #هنر #${topic.replace(/\s+/g, "_")}`,
+                `الهام از ${topic} 🌟\n\nهر چیز می‌تواند منبع الهام باشد، کافی است با چشم‌های باز نگاه کنیم 👁️\n\n#الهام #${topic.replace(/\s+/g, "_")}`,
+            ],
+            motivational: [
+                `${topic} و قدرت اراده 💪\n\nهیچ رؤیایی بزرگ‌تر از توان تو نیست! امروز قدم اول را بردار 🚀\n\n#انگیزه #موفقیت #${topic.replace(/\s+/g, "_")}`,
+                `مسیر ${topic} 🛤️\n\nهر قدم کوچک، تو را به هدف بزرگت نزدیک‌تر می‌کند. ادامه بده! ⭐\n\n#مسیر_موفقیت #${topic.replace(/\s+/g, "_")}`,
+            ],
+        }
 
-    return {
-        caption: randomCaption.caption,
-        hashtags: randomCaption.hashtags,
-        success: true,
-        source: "offline",
-        error: "همه سیستم‌ها ناموفق، از کپشن از پیش تعریف شده استفاده شد",
+        const captions = fallbackCaptions[style as keyof typeof fallbackCaptions] || fallbackCaptions.casual
+        return captions[Math.floor(Math.random() * captions.length)]
+    }
+
+    // تعیین اولویت سرویس‌ها
+    private static getProviderPriority(preferredProvider: AIProvider): AIProvider[] {
+        // اولویت: ابتدا سرویس انتخابی، سپس offline
+        const priority: AIProvider[] = []
+
+        // اضافه کردن سرویس انتخابی
+        priority.push(preferredProvider)
+
+        // اضافه کردن offline اگر قبلاً اضافه نشده
+        if (preferredProvider !== "offline") {
+            priority.push("offline")
+        }
+
+        return priority
+    }
+
+    // کپشن پیش‌فرض در صورت شکست همه سرویس‌ها
+    private static getFallbackCaption(topic: string, style: string): string {
+        return this.generateOfflineCaption(topic, style)
+    }
+
+    // بررسی وضعیت سرویس‌ها
+    static async checkProvidersStatus(): Promise<Record<AIProvider, boolean>> {
+        const status: Record<AIProvider, boolean> = {
+            aval: false,
+            gemini: false,
+            huggingface: false,
+            offline: true, // همیشه در دسترس است
+        }
+
+        // تست Aval AI
+        try {
+            console.log("🔄 Testing Aval AI connection...")
+            status.aval = await testAvalAI()
+            console.log("✅ Aval AI status:", status.aval)
+        } catch (error) {
+            console.warn("⚠️ Aval AI test failed:", error)
+            status.aval = false
+        }
+
+        return status
+    }
+
+    // دریافت آمار استفاده
+    static getUsageStats(): {
+        totalGenerations: number
+        successRate: number
+        averageTime: number
+        providerStats: Record<AIProvider, number>
+    } {
+        // این آمار می‌تواند از دیتابیس یا localStorage خوانده شود
+        return {
+            totalGenerations: 0,
+            successRate: 0,
+            averageTime: 0,
+            providerStats: {
+                aval: 0,
+                gemini: 0,
+                huggingface: 0,
+                offline: 0,
+            },
+        }
     }
 }
 
-// کپشن‌های از پیش تعریف شده برای موارد اضطراری
-function getPredefinedCaptions(topic: string): Array<{ caption: string; hashtags: string[] }> {
-    const baseCaptions = [
-        {
-            caption:
-                "✨ لحظه‌ای خاص را با شما به اشتراک می‌گذارم\n\n🌟 هر روز فرصتی جدید برای خلق خاطرات زیباست\n💫 زندگی در جزئیات کوچک نهفته است\n\nشما چه تجربه‌ای امروز داشتید؟ 💭",
-            hashtags: ["#زندگی", "#لحظات_خاص", "#خاطرات", "#تجربه", "#شادی"],
-        },
-        {
-            caption:
-                "🌈 رنگارنگی زندگی در تنوع تجربه‌هاست\n\n✨ هر لحظه، فرصتی برای یادگیری\n🌟 هر روز، شانسی برای رشد\n💫 هر تجربه، پلی به سوی آینده بهتر\n\nامروز چه چیز جدیدی یاد گرفتید؟ 🤔",
-            hashtags: ["#یادگیری", "#رشد", "#تجربه", "#زندگی", "#پیشرفت"],
-        },
-        {
-            caption:
-                "💪 هر روز فرصتی جدید برای شروع است\n\n🎯 هدف‌هایتان را مشخص کنید\n✨ به توانایی‌هایتان باور داشته باشید\n🚀 قدم به قدم به سمت موفقیت حرکت کنید\n\nبزرگترین هدف شما چیست؟ 💭",
-            hashtags: ["#انگیزه", "#موفقیت", "#هدف", "#پیشرفت", "#باور"],
-        },
-    ]
+// Export تابع ساده برای استفاده آسان
+export async function generateSmartCaption(topic: string, options?: Partial<SmartCaptionOptions>): Promise<string> {
+    const result = await SmartCaptionGenerator.generateCaption({
+        topic,
+        ...options,
+    })
 
-    // اگر موضوع خاصی داده شده، سعی کن کپشن مرتبط ایجاد کن
-    if (topic) {
-        const topicCaption = {
-            caption: `✨ ${topic} - تجربه‌ای که ارزش به اشتراک گذاشتن دارد\n\n🌟 هر تجربه جدید، فرصتی برای رشد\n💫 هر لحظه، یادگیری جدید\n🌈 زندگی در تنوع و تجربه زیباست\n\nنظر شما درباره ${topic} چیست؟ 💭`,
-            hashtags: ["#تجربه", "#یادگیری", "#زندگی", "#اشتراک_گذاری", `#${topic.replace(/\s+/g, "_")}`],
-        }
-        return [topicCaption, ...baseCaptions]
-    }
-
-    return baseCaptions
+    return result.caption
 }
 
-// تابع کمکی برای بررسی وضعیت API ها
-export async function checkAPIStatus(): Promise<{
-    avalAI: boolean
-    fallback: boolean
-}> {
-    const status = {
-        avalAI: false,
-        fallback: true, // سیستم پشتیبان همیشه در دسترس است
-    }
-
-    // بررسی Aval AI
-    try {
-        const testResult = await generateAvalAICaption({
-            topic: "تست",
-            style: "casual",
-            length: "short",
-            includeHashtags: false,
-        })
-        status.avalAI = testResult.success
-    } catch (error) {
-        console.log("Aval AI API test failed:", error)
-    }
-
-    return status
-}
+// Export پیش‌فرض
+export default SmartCaptionGenerator
