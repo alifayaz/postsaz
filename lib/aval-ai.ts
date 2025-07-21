@@ -29,7 +29,7 @@ export async function generateCaption(request: CaptionRequest): Promise<CaptionR
         Authorization: `Bearer ${AVAL_AI_API_KEY}`,
       },
       body: JSON.stringify({
-        model: "gpt-3.5-turbo",
+        model: "gpt-4o-mini",
         messages: [
           {
             role: "system",
