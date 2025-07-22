@@ -365,17 +365,6 @@ export default function CreatePage() {
                       className="max-w-full h-10 mx-auto object-cover"
                   />
                 </Link>
-
-                <nav className="flex items-center gap-4">
-                  <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                    <Home className="h-4 w-4" />
-                    خانه
-                  </Link>
-                  <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                    <User className="h-4 w-4" />
-                    داشبورد
-                  </Link>
-                </nav>
               </div>
 
               <div className="flex items-center gap-4">
@@ -392,13 +381,16 @@ export default function CreatePage() {
                     </>
                 ) : (
                     <div className="flex items-center gap-2">
-                      <Link href="/login" className="text-purple-600 hover:text-purple-700">
-                        ورود
-                      </Link>
-                      <span className="text-gray-400">|</span>
-                      <Link href="/signup" className="text-purple-600 hover:text-purple-700">
-                        ثبت نام
-                      </Link>
+                      <Button asChild>
+                        <Link href="/login" className="text-gray-600 hover:text-gray-900">
+                          ورود
+                        </Link>
+                      </Button>
+                      <Button asChild>
+                        <Link href="/signup" className="text-gray-600 hover:text-gray-900">
+                          ثبت نام
+                        </Link>
+                      </Button>
                     </div>
                 )}
               </div>

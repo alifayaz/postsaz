@@ -45,15 +45,19 @@ export default function HomePage() {
                   </>
               ) : (
                   <>
+                  <Button asChild>
                     <Link href="/login" className="text-gray-600 hover:text-gray-900">
                       ورود
                     </Link>
-                    <Link href="/signup" className="text-gray-600 hover:text-gray-900">
+                  </Button>
+                    <Button asChild>
+                      <Link href="/signup" className="text-gray-600 hover:text-gray-900">
                       ثبت نام
                     </Link>
-                    <Button asChild>
-                      <Link href="/create">شروع رایگان</Link>
                     </Button>
+                    {/*<Button asChild>
+                      <Link href="/create">شروع رایگان</Link>
+                    </Button>*/}
                   </>
               )}
             </div>
