@@ -187,9 +187,8 @@ export default function CreatePage() {
     }
   }
 
-  const handleDownload = () => {
-    // پیاده‌سازی دانلود پست
-    alert("قابلیت دانلود به زودی اضافه می‌شود")
+  const handleDownload = (caption: string) => {
+      navigator.clipboard.writeText(caption).then(() => alert("کپشن کپی شد!"));
   }
 
   return (
@@ -438,9 +437,9 @@ export default function CreatePage() {
 
                     {/* Download Button */}
                     <div className="mt-6 text-center">
-                      <Button onClick={handleDownload} size="lg" className="w-full">
+                      <Button onClick={() =>handleDownload(caption)} size="lg" className="w-full">
                         <Download className="mr-2 h-4 w-4" />
-                        دانلود پست
+                        کپی متن
                       </Button>
                     </div>
                   </CardContent>
