@@ -1,17 +1,20 @@
 "use client"
 
 import type React from "react"
-
 import { useState, useRef } from "react"
+import { useRouter } from "next/navigation"
+import { useAuth } from "@/contexts/AuthContext"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Instagram, Upload, Wand2, Download, ArrowRight, Loader2 } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
+import { Instagram, Upload, Wand2, Download, Loader2, ImageIcon, Save, Home, User } from "lucide-react"
 import Link from "next/link"
-import { generateCaption, getFallbackCaption } from "@/lib/aval-ai"
+import { generateCaption as generateAvalCaption } from "@/lib/aval-ai"
+import { supabase } from "@/lib/supabase"
 
 const templates = [
   {
@@ -103,15 +106,27 @@ const topics = [
 ]
 
 export default function CreatePage() {
+  const { user, loading } = useAuth()
+  const router = useRouter()
   const [selectedTemplate, setSelectedTemplate] = useState(templates[0])
   const [selectedTopic, setSelectedTopic] = useState("")
   const [customTopic, setCustomTopic] = useState("")
   const [uploadedImage, setUploadedImage] = useState<string | null>(null)
   const [caption, setCaption] = useState("")
   const [isGenerating, setIsGenerating] = useState(false)
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
   const [captionStyle, setCaptionStyle] = useState<"casual" | "professional" | "creative" | "motivational">("casual")
   const [captionLength, setCaptionLength] = useState<"short" | "medium" | "long">("medium")
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  // بررسی احراز هویت
+  // حذف این useEffect
+  // useEffect(() => {
+  //   if (!loading && !user) {
+  //     router.push("/login")
+  //   }
+  // }, [user, loading, router])
 
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
@@ -141,7 +156,7 @@ export default function CreatePage() {
   }
 
   const handleGenerateCaption = async () => {
-    const topic = customTopic || topics.find((t) => t.id === selectedTopic)?.name
+    const topic = customTopic || topics.find((t) => t.id === selectedTopic)?.name || ""
     if (!topic) {
       alert("لطفاً موضوعی انتخاب کنید یا وارد کنید")
       return
@@ -149,12 +164,11 @@ export default function CreatePage() {
 
     setIsGenerating(true)
     try {
-      const result = await generateCaption({
+      const result = await generateAvalCaption({
         topic,
         style: captionStyle,
         length: captionLength,
         includeHashtags: true,
-        language: "fa",
       })
 
       if (result.success) {
@@ -164,32 +178,178 @@ export default function CreatePage() {
                 : result.caption
         setCaption(fullCaption)
       } else {
-        // در صورت خطا از کپشن نمونه استفاده کنید
-        console.warn("AI generation failed, using fallback:", result.error)
-
-        // استفاده از کپشن نمونه
-        const fallbackCaption = getFallbackCaption(selectedTopic || "default")
-        setCaption(fallbackCaption)
-
-        // نمایش پیام خطا اما ادامه کار
-        alert(`خطا در تولید کپشن با AI: ${result.error}\n\nکپشن نمونه نمایش داده شد.`)
+        alert("خطا در تولید کپشن. لطفاً دوباره تلاش کنید.")
       }
     } catch (error) {
       console.error("Caption generation error:", error)
-
-      // استفاده از کپشن نمونه در صورت خطا
-      const fallbackCaption = getFallbackCaption(selectedTopic || "default")
-      setCaption(fallbackCaption)
-
-      alert("خطا در اتصال به سرویس AI. کپشن نمونه نمایش داده شد.")
+      alert("خطا در تولید کپشن. لطفاً دوباره تلاش کنید.")
     } finally {
       setIsGenerating(false)
     }
   }
 
-  const handleDownload = (caption: string) => {
-      navigator.clipboard.writeText(caption).then(() => alert("کپشن کپی شد!"));
+  const handleSavePost = async () => {
+    if (!user) {
+      if (confirm("برای ذخیره پست باید وارد حساب کاربری شوید. آیا می‌خواهید به صفحه ورود بروید؟")) {
+        router.push("/login")
+      }
+      return
+    }
+
+    const topic = customTopic || topics.find((t) => t.id === selectedTopic)?.name || ""
+
+    if (!topic.trim() || !caption.trim()) {
+      alert("لطفاً موضوع و کپشن را تکمیل کنید")
+      return
+    }
+
+    setIsSaving(true)
+    try {
+      console.log("💾 Saving post directly to Supabase...")
+
+      // استفاده مستقیم از Supabase client به جای API route
+      const { data: post, error } = await supabase
+          .from("posts")
+          .insert({
+            user_id: user.id,
+            title: topic.trim(),
+            template_id: selectedTemplate.id,
+            image_url: uploadedImage || null,
+            caption: caption.trim(),
+            topic: topic.trim(),
+          })
+          .select()
+          .single()
+
+      if (error) {
+        console.error("❌ Supabase error:", error)
+        throw new Error(error.message)
+      }
+
+      console.log("✅ Post saved successfully:", post.id)
+      setSaveSuccess(true)
+      alert("✅ پست با موفقیت ذخیره شد!")
+
+      // پاک کردن فرم بعد از 2 ثانیه
+      setTimeout(() => {
+        setSelectedTopic("")
+        setCustomTopic("")
+        setCaption("")
+        setUploadedImage(null)
+        setSaveSuccess(false)
+      }, 2000)
+    } catch (error) {
+      console.error("Save post error:", error)
+      alert(error instanceof Error ? error.message : "❌ خطا در ذخیره پست")
+    } finally {
+      setIsSaving(false)
+    }
   }
+
+  const handleDownloadImageOnly = async () => {
+    if (!uploadedImage) {
+      alert("ابتدا تصویری آپلود کنید")
+      return
+    }
+
+    const canvas = document.createElement("canvas")
+    const ctx = canvas.getContext("2d")
+    if (!ctx) return
+
+    canvas.width = 1080
+    canvas.height = 1080
+
+    switch (selectedTemplate.id) {
+      case "modern":
+        const modernGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+        modernGradient.addColorStop(0, "#3B82F6")
+        modernGradient.addColorStop(1, "#8B5CF6")
+        ctx.fillStyle = modernGradient
+        break
+      case "minimal":
+        const minimalGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+        minimalGradient.addColorStop(0, "#F3F4F6")
+        minimalGradient.addColorStop(1, "#E5E7EB")
+        ctx.fillStyle = minimalGradient
+        break
+      case "vibrant":
+        const vibrantGradient = ctx.createLinearGradient(0, 0, canvas.width, canvas.height)
+        vibrantGradient.addColorStop(0, "#FB923C")
+        vibrantGradient.addColorStop(1, "#EC4899")
+        ctx.fillStyle = vibrantGradient
+        break
+      default:
+        ctx.fillStyle = "#FFFFFF"
+    }
+    ctx.fillRect(0, 0, canvas.width, canvas.height)
+
+    const img = new Image()
+    img.crossOrigin = "anonymous"
+    img.onload = () => {
+      const aspectRatio = img.width / img.height
+      let drawWidth = canvas.width
+      let drawHeight = canvas.height
+      let offsetX = 0
+      let offsetY = 0
+
+      if (aspectRatio > 1) {
+        drawHeight = canvas.width / aspectRatio
+        offsetY = (canvas.height - drawHeight) / 2
+      } else if (aspectRatio < 1) {
+        drawWidth = canvas.height * aspectRatio
+        offsetX = (canvas.width - drawWidth) / 2
+      }
+
+      ctx.drawImage(img, offsetX, offsetY, drawWidth, drawHeight)
+
+      canvas.toBlob(
+          (blob) => {
+            if (!blob) return
+            const url = URL.createObjectURL(blob)
+            const link = document.createElement("a")
+            link.href = url
+            link.download = `image-only-${Date.now()}.png`
+            document.body.appendChild(link)
+            link.click()
+            document.body.removeChild(link)
+            URL.revokeObjectURL(url)
+          },
+          "image/png",
+          1.0,
+      )
+    }
+    img.src = uploadedImage
+  }
+
+  const handleDownloadCaption = () => {
+    if (!caption) {
+      alert("ابتدا کپشنی تولید کنید")
+      return
+    }
+
+    const blob = new Blob([caption], { type: "text/plain;charset=utf-8" })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement("a")
+    link.href = url
+    link.download = `caption-${Date.now()}.txt`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    URL.revokeObjectURL(url)
+  }
+
+  if (loading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center">
+          <Loader2 className="h-8 w-8 animate-spin" />
+        </div>
+    )
+  }
+
+  // حذف این شرط:
+  // if (!user) {
+  //   return null
+  // }
 
   return (
       <div className="min-h-screen bg-gray-50">
@@ -197,14 +357,48 @@ export default function CreatePage() {
         <header className="bg-white shadow-sm border-b">
           <div className="container mx-auto px-4 py-4">
             <div className="flex items-center justify-between">
-              <Link href="/" className="flex items-center gap-2">
-                <Instagram className="h-8 w-8 text-purple-600" />
-                <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
-              </Link>
-              <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                <ArrowRight className="h-4 w-4" />
-                بازگشت به خانه
-              </Link>
+              <div className="flex items-center gap-6">
+                <Link href="/" className="flex items-center gap-2">
+                  <Instagram className="h-8 w-8 text-purple-600" />
+                  <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
+                </Link>
+
+                <nav className="flex items-center gap-4">
+                  <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                    <Home className="h-4 w-4" />
+                    خانه
+                  </Link>
+                  <Link href="/dashboard" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
+                    <User className="h-4 w-4" />
+                    داشبورد
+                  </Link>
+                </nav>
+              </div>
+
+              <div className="flex items-center gap-4">
+                {loading ? (
+                    <div className="w-32 h-8 bg-gray-200 animate-pulse rounded"></div>
+                ) : user ? (
+                    <>
+                      <span className="text-gray-600">سلام، {user?.user_metadata?.first_name || user?.email}</span>
+                      {saveSuccess && (
+                          <Badge variant="default" className="bg-green-500">
+                            ✅ ذخیره شد
+                          </Badge>
+                      )}
+                    </>
+                ) : (
+                    <div className="flex items-center gap-2">
+                      <Link href="/login" className="text-purple-600 hover:text-purple-700">
+                        ورود
+                      </Link>
+                      <span className="text-gray-400">|</span>
+                      <Link href="/signup" className="text-purple-600 hover:text-purple-700">
+                        ثبت نام
+                      </Link>
+                    </div>
+                )}
+              </div>
             </div>
           </div>
         </header>
@@ -360,7 +554,7 @@ export default function CreatePage() {
                       ) : (
                           <>
                             <Wand2 className="mr-2 h-4 w-4" />
-                            تولید کپشن با AI
+                            تولید کپشن هوشمند
                           </>
                       )}
                     </Button>
@@ -373,13 +567,37 @@ export default function CreatePage() {
                       <CardHeader>
                         <CardTitle>ویرایش کپشن</CardTitle>
                       </CardHeader>
-                      <CardContent>
+                      <CardContent className="space-y-4">
                         <Textarea
                             value={caption}
                             onChange={(e) => setCaption(e.target.value)}
                             rows={6}
                             placeholder="کپشن خود را اینجا وارد کنید"
                         />
+                        <div className="grid grid-cols-2 gap-4">
+                          <Button onClick={handleDownloadCaption} variant="outline" className="bg-transparent">
+                            <Download className="mr-2 h-4 w-4" />
+                            دانلود کپشن
+                          </Button>
+                          <Button onClick={handleSavePost} disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+                            {isSaving ? (
+                                <>
+                                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                                  در حال ذخیره...
+                                </>
+                            ) : user ? (
+                                <>
+                                  <Save className="mr-2 h-4 w-4" />
+                                  ذخیره پست
+                                </>
+                            ) : (
+                                <>
+                                  <Save className="mr-2 h-4 w-4" />
+                                  ذخیره پست (نیاز به ورود)
+                                </>
+                            )}
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                 )}
@@ -429,18 +647,28 @@ export default function CreatePage() {
                         {caption && (
                             <div className="text-sm">
                               <span className="font-semibold">your_account</span>
-                              <span className="mr-2">{caption}</span>
+                              <span className="mr-2">
+                            {caption.substring(0, 100)}
+                                {caption.length > 100 ? "..." : ""}
+                          </span>
                             </div>
                         )}
                       </div>
                     </div>
 
-                    {/* Download Button */}
-                    <div className="mt-6 text-center">
-                      <Button onClick={() =>handleDownload(caption)} size="lg" className="w-full">
-                        <Download className="mr-2 h-4 w-4" />
-                        کپی متن
-                      </Button>
+                    {/* Download Buttons */}
+                    <div className="mt-6 space-y-3">
+                      {uploadedImage && (
+                          <Button
+                              onClick={handleDownloadImageOnly}
+                              variant="outline"
+                              size="lg"
+                              className="w-full bg-transparent"
+                          >
+                            <ImageIcon className="mr-2 h-4 w-4" />
+                            دانلود فقط تصویر
+                          </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>

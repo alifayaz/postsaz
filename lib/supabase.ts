@@ -1,9 +1,7 @@
 import { createClient } from "@supabase/supabase-js"
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "https://agjdeylhwrvsrouftljn.supabase.co"
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFnamRleWxod3J2c3JvdWZ0bGpuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3MTA1MzIsImV4cCI6MjA2NTI4NjUzMn0.yUUc5GM92v8POTeBmTcNeS5x76Akki3z1WTbXC5ZViQ"
-
-export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL || "your-supabase-url"
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "your-supabase-anon-key"
 
 // Client-side Supabase client (singleton pattern)
 let supabaseClient: ReturnType<typeof createClient> | null = null
@@ -13,4 +11,31 @@ export const getSupabaseClient = () => {
     supabaseClient = createClient(supabaseUrl, supabaseAnonKey)
   }
   return supabaseClient
+}
+
+// Default export for client-side usage
+export const supabase = createClient(supabaseUrl, supabaseAnonKey)
+
+// Server-side function to create authenticated client
+export function createServerClient(request: Request) {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      storage: {
+        getItem: (key: string) => {
+          const cookies = request.headers.get("cookie")
+          if (!cookies) return null
+
+          const cookie = cookies.split(";").find((c) => c.trim().startsWith(`${key}=`))
+
+          return cookie ? decodeURIComponent(cookie.split("=")[1]) : null
+        },
+        setItem: () => {
+          // No-op for server-side
+        },
+        removeItem: () => {
+          // No-op for server-side
+        },
+      },
+    },
+  })
 }
