@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { Instagram, Zap, ImageIcon, Type, Download, User, LogOut } from "lucide-react"
 import { useAuth } from "@/contexts/AuthContext"
+import React from "react";
 
 export default function HomePage() {
   const { user, loading, signOut } = useAuth()
@@ -19,8 +20,11 @@ export default function HomePage() {
         <header className="container mx-auto px-4 py-6">
           <nav className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Instagram className="h-8 w-8 text-purple-600" />
-              <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
+              <img
+                  src="/logo.svg"
+                  alt="postsazAI"
+                  className="max-w-full h-10 mx-auto object-cover"
+              />
             </div>
             <div className="flex items-center gap-4">
               {loading ? (
@@ -118,8 +122,11 @@ export default function HomePage() {
         <footer className="bg-gray-900 text-white py-12">
           <div className="container mx-auto px-4 text-center">
             <div className="flex items-center justify-center gap-2 mb-4">
-              <Instagram className="h-6 w-6" />
-              <span className="text-xl font-bold">پُست‌ساز</span>
+              <img
+                  src="/logo-w.svg"
+                  alt="postsazAI"
+                  className="max-w-full h-10 mx-auto object-cover"
+              />
             </div>
             <p className="text-gray-400">ابزار هوشمند تولید پست اینستاگرام</p>
           </div>

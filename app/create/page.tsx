@@ -359,8 +359,11 @@ export default function CreatePage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
                 <Link href="/" className="flex items-center gap-2">
-                  <Instagram className="h-8 w-8 text-purple-600" />
-                  <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
+                  <img
+                      src="/logo.svg"
+                      alt="postsazAI"
+                      className="max-w-full h-10 mx-auto object-cover"
+                  />
                 </Link>
 
                 <nav className="flex items-center gap-4">

@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import React, { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
@@ -217,24 +217,20 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-6">
                 <Link href="/" className="flex items-center gap-2">
-                  <Instagram className="h-8 w-8 text-purple-600" />
-                  <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
+                  <img
+                      src="/logo.svg"
+                      alt="postsazAI"
+                      className="max-w-full h-10 mx-auto object-cover"
+                  />
                 </Link>
 
-                <nav className="flex items-center gap-4">
-                  <Link href="/" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                    <Home className="h-4 w-4" />
-                    خانه
-                  </Link>
-                  <Link href="/create" className="flex items-center gap-2 text-gray-600 hover:text-gray-900">
-                    <Plus className="h-4 w-4" />
-                    ساخت پست
-                  </Link>
-                </nav>
+
               </div>
 
               <div className="flex items-center gap-4">
-                <span className="text-gray-600">خوش آمدید، {user?.user_metadata?.first_name || user?.email}</span>
+                <div className="flex !flex-col justify-center items-center gap-4">
+                  <span className="text-gray-600">خوش آمدید، {user?.user_metadata?.first_name || user?.email}</span>
+                </div>
                 <Button variant="outline" size="sm" onClick={handleLogout}>
                   <LogOut className="h-4 w-4 mr-2" />
                   خروج
@@ -321,7 +317,7 @@ export default function DashboardPage() {
             {/* Posts List */}
             <Card>
               <CardHeader>
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between w-full">
                   <CardTitle>پست‌های ذخیره شده ({stats.totalPosts})</CardTitle>
                   <Link href="/create">
                     <Button size="sm">
@@ -354,7 +350,7 @@ export default function DashboardPage() {
                       {posts.map((post) => (
                           <Card key={post.id} className="hover:shadow-md transition-shadow">
                             <CardContent className="p-6">
-                              <div className="flex items-start gap-4">
+                              <div className="flex lg:!flex-row !flex-col lg:items-start items-center gap-4">
                                 {/* Template Preview */}
                                 <div
                                     className={`w-16 h-16 rounded-lg ${getTemplateStyle(post.template_id)} flex items-center justify-center flex-shrink-0`}
@@ -363,10 +359,10 @@ export default function DashboardPage() {
                                 </div>
 
                                 {/* Post Info */}
-                                <div className="flex-1 min-w-0">
-                                  <div className="flex items-start justify-between mb-2">
+                                <div className="flex-1 lg:min-w-0 w-full">
+                                  <div className="flex lg:!flex-row !flex-col lg:items-start items-center justify-between mb-2">
                                     <div>
-                                      <h3 className="text-lg font-semibold text-gray-900 truncate">{post.title}</h3>
+                                      <h3 className="text-lg font-semibold text-gray-900 truncate lg:text-right text-center">{post.title}</h3>
                                       <div className="flex items-center gap-2 mt-1">
                                         {post.topic && (
                                             <Badge variant="secondary" className="text-xs">
@@ -385,7 +381,7 @@ export default function DashboardPage() {
                                     </div>
 
                                     {/* Actions */}
-                                    <div className="flex items-center gap-2">
+                                    <div className="flex lg:mt-0 mt-4 items-center justify-center gap-2">
                                       <Button
                                           variant="outline"
                                           size="sm"

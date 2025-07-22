@@ -4,7 +4,7 @@ import "./globals.css"
 import { AuthProvider } from "@/contexts/AuthContext"
 
 export const metadata: Metadata = {
-    title: "پُست‌ساز - ابزار تولید پست اینستاگرام",
+    title: " پست ساز | هوش مصنوعی ساخت پست  - ابزار تولید پست اینستاگرام",
     description: "با پُست‌ساز به راحتی پست‌های زیبا و حرفه‌ای برای اینستاگرام بسازید",
 }
 

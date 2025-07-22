@@ -55,8 +55,11 @@ export default function ForgotPasswordPage() {
             بازگشت به ورود
           </Link>
           <div className="flex items-center justify-center gap-2 mb-4">
-            <Instagram className="h-8 w-8 text-purple-600" />
-            <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
+            <img
+                src="/logo.svg"
+                alt="postsazAI"
+                className="max-w-full h-10 mx-auto object-cover"
+            />
           </div>
           <h1 className="text-2xl font-bold text-gray-900">بازیابی رمز عبور</h1>
           <p className="text-gray-600 mt-2">ایمیل خود را وارد کنید</p>
