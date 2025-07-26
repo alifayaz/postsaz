@@ -72,9 +72,21 @@ export async function resendConfirmationEmail(email: string): Promise<{ success:
   try {
     console.log("📧 Resending confirmation email to:", email)
 
+    // تابع کمکی برای تشخیص URL صحیح
+    const getRedirectURL = () => {
+      if (typeof window !== "undefined") {
+        const { protocol, host } = window.location
+        return `${protocol}//${host}/auth/callback`
+      }
+      return `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`
+    }
+
     const { data, error } = await supabase.auth.resend({
       type: "signup",
       email: email,
+      options: {
+        emailRedirectTo: getRedirectURL(),
+      },
     })
 
     if (error) {

@@ -32,11 +32,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     // Get initial session
     const getInitialSession = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession()
-      setUser(session?.user ?? null)
-      setLoading(false)
+      try {
+        const {
+          data: { session },
+        } = await supabase.auth.getSession()
+
+        console.log("🔍 Initial session check:", {
+          hasSession: !!session,
+          hasUser: !!session?.user,
+          userEmail: session?.user?.email,
+        })
+
+        setUser(session?.user ?? null)
+      } catch (error) {
+        console.error("❌ Error getting initial session:", error)
+        setUser(null)
+      } finally {
+        setLoading(false)
+      }
     }
 
     getInitialSession()
@@ -45,15 +58,33 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange(async (event, session) => {
+      console.log("🔄 Auth state change:", {
+        event,
+        hasSession: !!session,
+        hasUser: !!session?.user,
+        userEmail: session?.user?.email,
+      })
+
       setUser(session?.user ?? null)
       setLoading(false)
+
+      // اگر کاربر تأیید شد، hash را از URL پاک کن
+      if (event === "SIGNED_IN" && typeof window !== "undefined" && window.location.hash) {
+        window.history.replaceState({}, document.title, window.location.pathname + window.location.search)
+      }
     })
 
     return () => subscription.unsubscribe()
   }, [])
 
   const signOut = async () => {
-    await supabase.auth.signOut()
+    try {
+      console.log("🚪 Signing out...")
+      await supabase.auth.signOut()
+      console.log("✅ Signed out successfully")
+    } catch (error) {
+      console.error("❌ Error signing out:", error)
+    }
   }
 
   const value = {
