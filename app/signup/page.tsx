@@ -12,6 +12,9 @@ import { Instagram, ArrowRight, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import { validateEmail, validatePassword, validateName } from "@/lib/auth-helpers"
+// خط زیر را حذف کنید:
+// import { checkEmailStatus } from "@/lib/email-checker"
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -48,19 +51,33 @@ export default function SignupPage() {
     setError("")
     setSuccess("")
 
-    // Validation
-    if (!formData.firstName || !formData.lastName || !formData.email || !formData.password) {
-      setError("لطفاً تمام فیلدها را پر کنید")
+    // Validation مرحله به مرحله
+    const firstNameValidation = validateName(formData.firstName, "نام")
+    if (!firstNameValidation.valid) {
+      setError(firstNameValidation.error!)
+      return
+    }
+
+    const lastNameValidation = validateName(formData.lastName, "نام خانوادگی")
+    if (!lastNameValidation.valid) {
+      setError(lastNameValidation.error!)
+      return
+    }
+
+    const emailValidation = validateEmail(formData.email)
+    if (!emailValidation.valid) {
+      setError(emailValidation.error!)
+      return
+    }
+
+    const passwordValidation = validatePassword(formData.password)
+    if (!passwordValidation.valid) {
+      setError(passwordValidation.error!)
       return
     }
 
     if (formData.password !== formData.confirmPassword) {
       setError("رمز عبور و تکرار آن یکسان نیستند")
-      return
-    }
-
-    if (formData.password.length < 6) {
-      setError("رمز عبور باید حداقل ۶ کاراکتر باشد")
       return
     }
 
@@ -72,35 +89,124 @@ export default function SignupPage() {
     setLoading(true)
 
     try {
+      console.log("🔄 Starting signup process...")
+
       const { data, error } = await supabase.auth.signUp({
-        email: formData.email,
+        email: formData.email.trim().toLowerCase(),
         password: formData.password,
         options: {
           data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            full_name: `${formData.firstName} ${formData.lastName}`,
+            first_name: formData.firstName.trim(),
+            last_name: formData.lastName.trim(),
+            full_name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
           },
         },
       })
 
+      console.log("📊 Signup response:", {
+        hasData: !!data,
+        hasUser: !!data?.user,
+        userId: data?.user?.id,
+        userEmail: data?.user?.email,
+        emailConfirmed: !!data?.user?.email_confirmed_at,
+        identitiesCount: data?.user?.identities?.length || 0,
+        error: error?.message,
+      })
+
       if (error) {
-        setError(
-            error.message === "User already registered"
-                ? "این ایمیل قبلاً ثبت شده است"
-                : "خطا در ثبت نام: " + error.message,
-        )
-        return
+        console.error("❌ Signup error:", error)
+
+        // بررسی انواع خطاهای مختلف با پیام‌های فارسی
+        if (
+            error.message.includes("User already registered") ||
+            error.message.includes("already been registered") ||
+            error.message.includes("email address is already registered") ||
+            error.message.includes("A user with this email address has already been registered")
+        ) {
+          setError(
+              "⚠️ این ایمیل قبلاً ثبت شده است.\n\n" +
+              "🔑 اگر حساب کاربری دارید، از صفحه ورود استفاده کنید.\n" +
+              "🔒 اگر رمز عبور را فراموش کرده‌اید، از لینک بازیابی رمز عبور استفاده کنید.\n" +
+              "📧 اگر ایمیل تأیید دریافت نکرده‌اید، از صفحه ورود گزینه 'ارسال مجدد' را انتخاب کنید.",
+          )
+          return
+        } else if (error.message.includes("Password should be at least")) {
+          setError("رمز عبور باید حداقل ۶ کاراکتر باشد")
+          return
+        } else if (error.message.includes("Invalid email")) {
+          setError("فرمت ایمیل نامعتبر است")
+          return
+        } else if (error.message.includes("Signup is disabled")) {
+          setError("امکان ثبت نام در حال حاضر غیرفعال است. لطفاً بعداً تلاش کنید.")
+          return
+        } else if (error.message.includes("Email rate limit exceeded")) {
+          setError("تعداد درخواست‌های ایمیل بیش از حد مجاز است. لطفاً چند دقیقه صبر کنید.")
+          return
+        } else {
+          setError("خطا در ثبت نام: " + error.message)
+          return
+        }
       }
 
-      if (data.user) {
-        setSuccess("ثبت نام با موفقیت انجام شد! لطفاً ایمیل خود را چک کنید.")
-        setTimeout(() => {
-          router.push("/login")
-        }, 2000)
+      // بررسی وضعیت پاسخ
+      if (data?.user) {
+        console.log("✅ User data received:", {
+          id: data.user.id,
+          email: data.user.email,
+          confirmed: !!data.user.email_confirmed_at,
+          identities: data.user.identities?.length || 0,
+        })
+
+        // اگر کاربر وجود داشت اما ایمیل تأیید نشده (identities خالی است)
+        if (data.user.identities && data.user.identities.length === 0) {
+          setError(
+              "⚠️ این ایمیل قبلاً ثبت شده است اما تأیید نشده.\n\n" +
+              "📧 لطفاً ایمیل خود را چک کنید و روی لینک تأیید کلیک کنید.\n\n" +
+              "اگر ایمیل تأیید دریافت نکرده‌اید، از صفحه ورود گزینه 'ارسال مجدد ایمیل تأیید' را انتخاب کنید.",
+          )
+          return
+        }
+
+        // اگر ایمیل از قبل تأیید شده (کاربر وارد شده)
+        if (data.user.email_confirmed_at) {
+          setSuccess("🎉 ثبت نام با موفقیت انجام شد! در حال انتقال به داشبورد...")
+          setTimeout(() => {
+            router.push("/dashboard")
+          }, 1500)
+        } else {
+          // کاربر جدید - ایمیل تأیید ارسال شده
+          setSuccess(
+              "✅ ثبت نام با موفقیت انجام شد!\n\n" +
+              "📧 ایمیل تأیید به آدرس شما ارسال شد.\n" +
+              "لطفاً ایمیل خود را چک کنید و روی لینک تأیید کلیک کنید.\n\n" +
+              "پس از تأیید ایمیل، می‌توانید وارد شوید.",
+          )
+
+          // پاک کردن فرم
+          setFormData({
+            firstName: "",
+            lastName: "",
+            email: "",
+            password: "",
+            confirmPassword: "",
+            acceptTerms: false,
+          })
+
+          setTimeout(() => {
+            router.push("/login?message=please-verify-email")
+          }, 4000)
+        }
+      } else {
+        // اگر هیچ داده‌ای برنگشت (حالت نادر)
+        setError(
+            "⚠️ ممکن است این ایمیل قبلاً ثبت شده باشد.\n\n" +
+            "اگر حساب کاربری دارید، از صفحه ورود استفاده کنید.\n" +
+            "اگر رمز عبور را فراموش کرده‌اید، از لینک بازیابی رمز عبور استفاده کنید.",
+        )
       }
     } catch (err) {
-      setError("خطای غیرمنتظره رخ داد")
+      console.error("❌ Unexpected error:", err)
+      setError("خطای غیرمنتظره رخ داد. لطفاً اتصال اینترنت خود را بررسی کنید و دوباره تلاش کنید.")
     } finally {
       setLoading(false)
     }
@@ -133,11 +239,8 @@ export default function SignupPage() {
               بازگشت به خانه
             </Link>
             <div className="flex items-center justify-center gap-2 mb-4">
-              <img
-                  src="/logo.svg"
-                  alt="postsazAI"
-                  className="max-w-full h-10 mx-auto object-cover"
-              />
+              <Instagram className="h-8 w-8 text-purple-600" />
+              <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">ایجاد حساب کاربری</h1>
             <p className="text-gray-600 mt-2">به جمع کاربران پُست‌ساز بپیوندید</p>

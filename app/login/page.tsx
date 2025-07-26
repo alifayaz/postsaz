@@ -12,6 +12,7 @@ import { Instagram, ArrowRight, Loader2 } from "lucide-react"
 import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
+import { resendConfirmationEmail } from "@/lib/email-checker"
 
 export default function LoginPage() {
   const [formData, setFormData] = useState({
@@ -22,6 +23,8 @@ export default function LoginPage() {
   const [error, setError] = useState("")
   const router = useRouter()
   const { user, loading: authLoading } = useAuth()
+  const [resendingEmail, setResendingEmail] = useState(false)
+  const [resendSuccess, setResendSuccess] = useState("")
 
   // Redirect if already logged in
   useEffect(() => {
@@ -59,6 +62,7 @@ export default function LoginPage() {
         setError(
             error.message === "Invalid login credentials"
                 ? "ایمیل یا رمز عبور اشتباه است"
+                : error.message === "Email not confirmed" ? 'ایمیل خود را هنوز تایید نکرده اید!'
                 : "خطا در ورود: " + error.message,
         )
         return
@@ -71,6 +75,31 @@ export default function LoginPage() {
       setError("خطای غیرمنتظره رخ داد")
     } finally {
       setLoading(false)
+    }
+  }
+
+  const handleResendConfirmation = async () => {
+    if (!formData.email) {
+      setError("لطفاً ابتدا ایمیل خود را وارد کنید")
+      return
+    }
+
+    setResendingEmail(true)
+    setError("")
+    setResendSuccess("")
+
+    try {
+      const result = await resendConfirmationEmail(formData.email)
+
+      if (result.success) {
+        setResendSuccess("✅ ایمیل تأیید مجدداً ارسال شد. لطفاً ایمیل خود را چک کنید.")
+      } else {
+        setError("خطا در ارسال ایمیل: " + result.error)
+      }
+    } catch (error) {
+      setError("خطای غیرمنتظره در ارسال ایمیل")
+    } finally {
+      setResendingEmail(false)
     }
   }
 
@@ -101,11 +130,8 @@ export default function LoginPage() {
               بازگشت به خانه
             </Link>
             <div className="flex items-center justify-center gap-2 mb-4">
-              <img
-                  src="/logo.svg"
-                  alt="postsazAI"
-                  className="max-w-full h-10 mx-auto object-cover"
-              />
+              <Instagram className="h-8 w-8 text-purple-600" />
+              <span className="text-2xl font-bold text-gray-900">پُست‌ساز</span>
             </div>
             <h1 className="text-2xl font-bold text-gray-900">ورود به حساب کاربری</h1>
             <p className="text-gray-600 mt-2">به پنل کاربری خود دسترسی پیدا کنید</p>
@@ -162,10 +188,32 @@ export default function LoginPage() {
                   )}
                 </Button>
 
-                <div className="text-center">
-                  <Link href="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700">
+                {resendSuccess && (
+                    <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                      <p className="text-green-600 text-sm">{resendSuccess}</p>
+                    </div>
+                )}
+
+                <div className="text-center space-y-2">
+                  <Link href="/forgot-password" className="text-sm text-purple-600 hover:text-purple-700 block">
                     رمز عبور را فراموش کرده‌اید؟
                   </Link>
+
+                  <button
+                      type="button"
+                      onClick={handleResendConfirmation}
+                      disabled={resendingEmail}
+                      className="text-sm text-purple-600 hover:text-purple-700 disabled:opacity-50"
+                  >
+                    {resendingEmail ? (
+                        <>
+                          <Loader2 className="inline h-3 w-3 animate-spin mr-1" />
+                          در حال ارسال...
+                        </>
+                    ) : (
+                        "ارسال مجدد ایمیل تأیید"
+                    )}
+                  </button>
                 </div>
               </form>
 
