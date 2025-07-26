@@ -13,8 +13,6 @@ import { supabase } from "@/lib/supabase"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/contexts/AuthContext"
 import { validateEmail, validatePassword, validateName } from "@/lib/auth-helpers"
-// خط زیر را حذف کنید:
-// import { checkEmailStatus } from "@/lib/email-checker"
 
 export default function SignupPage() {
   const [formData, setFormData] = useState({
@@ -44,6 +42,17 @@ export default function SignupPage() {
       ...prev,
       [name]: type === "checkbox" ? checked : value,
     }))
+  }
+
+  // تابع کمکی برای تشخیص URL صحیح
+  const getRedirectURL = () => {
+    if (typeof window !== "undefined") {
+      // در مرورگر، از window.location استفاده کنیم
+      const { protocol, host } = window.location
+      return `${protocol}//${host}/auth/callback`
+    }
+    // fallback برای SSR
+    return `${process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"}/auth/callback`
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -91,6 +100,9 @@ export default function SignupPage() {
     try {
       console.log("🔄 Starting signup process...")
 
+      const redirectURL = getRedirectURL()
+      console.log("🔗 Redirect URL:", redirectURL)
+
       const { data, error } = await supabase.auth.signUp({
         email: formData.email.trim().toLowerCase(),
         password: formData.password,
@@ -100,6 +112,7 @@ export default function SignupPage() {
             last_name: formData.lastName.trim(),
             full_name: `${formData.firstName.trim()} ${formData.lastName.trim()}`,
           },
+          emailRedirectTo: redirectURL, // تنظیم URL تأیید ایمیل
         },
       })
 
