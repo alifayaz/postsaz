@@ -574,7 +574,7 @@ export default function CreatePage() {
                             <Download className="mr-2 h-4 w-4" />
                             دانلود کپشن
                           </Button>
-                          <Button onClick={handleSavePost} disabled={isSaving} className="bg-green-600 hover:bg-green-700">
+                          <Button onClick={handleSavePost} disabled={isSaving} className="bg-green-600 hover:bg-green-700 text-[10px]">
                             {isSaving ? (
                                 <>
                                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
