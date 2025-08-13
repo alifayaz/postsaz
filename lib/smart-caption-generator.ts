@@ -8,7 +8,7 @@ export interface CaptionRequest {
   style?: "casual" | "professional" | "creative" | "motivational"
   length?: "short" | "medium" | "long"
   includeHashtags?: boolean
-  language?: string
+  language?: "fa" | "en"
 }
 
 export interface CaptionResponse {

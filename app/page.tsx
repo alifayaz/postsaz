@@ -23,7 +23,7 @@ export default function HomePage() {
               <img
                   src="/logo.svg"
                   alt="postsazAI"
-                  className="max-w-full h-10 mx-auto object-cover"
+                  className="max-w-full h-9 mx-auto object-cover"
               />
             </div>
             <div className="flex items-center gap-4">

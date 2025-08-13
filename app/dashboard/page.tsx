@@ -220,7 +220,7 @@ export default function DashboardPage() {
                   <img
                       src="/logo.svg"
                       alt="postsazAI"
-                      className="max-w-full h-10 mx-auto object-cover"
+                      className="max-w-full h-9 mx-auto object-cover"
                   />
                 </Link>
 
