@@ -32,16 +32,15 @@ export function LanguageSwitcher({ currentLocale }: LanguageSwitcherProps) {
     <DropdownMenu open={isOpen} onOpenChange={setIsOpen}>
       <DropdownMenuTrigger asChild>
         <Button variant="outline" size="sm" className="gap-2 bg-transparent">
-          {localeFlags[currentLocale]}
-          <span className="hidden sm:inline">
-            {localeFlags[currentLocale]} {localeNames[currentLocale]}
-          </span>
-          <span className="sm:hidden">
+          <span>
             <img
                 src={`${currentLocale === 'en' ? '/flags/us.png' : '/flags/ir.png'}`}
                 alt="postsazAI"
                 className="max-w-full h-3 mx-auto object-cover"
             />
+          </span>
+          <span className="hidden sm:inline">
+            {localeNames[currentLocale]}
           </span>
         </Button>
       </DropdownMenuTrigger>
