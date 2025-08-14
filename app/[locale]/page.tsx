@@ -29,8 +29,8 @@ export default function HomePage({ params }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
       {/* Header */}
-      <header className="container mx-auto px-4 py-6">
-        <nav className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""} ${user ? 'flex-col' : 'flex-row'}`}>
+      <header className="container mx-auto px-4 py-4">
+        <div className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""} ${user ? 'flex-col' : 'flex-row'}`}>
           <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
             <img
                 src="/logo.svg"
@@ -74,7 +74,7 @@ export default function HomePage({ params }: HomePageProps) {
               </>
             )}
           </div>
-        </nav>
+        </div>
       </header>
 
       {/* Hero Section */}
