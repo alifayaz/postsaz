@@ -375,7 +375,7 @@ export const translations = {
 
     // Home Page
     home: {
-      title: "PostSaz",
+      title: "PostSazAI",
       subtitle: "Smart Instagram Post Generator",
       hero: {
         title: "Create Your Instagram Post in Seconds",
