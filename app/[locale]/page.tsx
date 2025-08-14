@@ -134,8 +134,11 @@ export default function HomePage({ params }: HomePageProps) {
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4 text-center">
           <div className={`flex items-center justify-center gap-2 mb-4 ${isRTL ? "flex-row-reverse" : ""}`}>
-            <Instagram className="h-6 w-6" />
-            <span className="text-xl font-bold">{t("home.title")}</span>
+            <img
+                src="/logo-w.svg"
+                alt="postsazAI"
+                className="max-w-full h-10 mx-auto object-cover"
+            />
           </div>
           <p className="text-gray-400">{t("home.subtitle")}</p>
         </div>
