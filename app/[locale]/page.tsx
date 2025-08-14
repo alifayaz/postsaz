@@ -57,7 +57,7 @@ export default function HomePage({ params }: HomePageProps) {
                 </Button>
               </>
             ) : (
-              <>
+              <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
               <Button asChild>
                 <Link href={getLocalizedPath("/login")} className="text-gray-600 hover:text-gray-900">
                   {t("nav.login")}
@@ -71,7 +71,7 @@ export default function HomePage({ params }: HomePageProps) {
                 {/*<Button asChild>
                   <Link href={getLocalizedPath("/create")}>{t("home.hero.cta")}</Link>
                 </Button>*/}
-              </>
+              </div>
             )}
           </div>
         </div>
