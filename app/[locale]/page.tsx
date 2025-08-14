@@ -78,7 +78,7 @@ export default function HomePage({ params }: HomePageProps) {
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
+      <section className="container mx-auto px-4 pt-20 text-center">
         <h1 className="text-5xl font-bold text-gray-900 mb-6">{t("home.hero.title")}</h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">{t("home.hero.subtitle")}</p>
         <Button size="lg" asChild className="text-lg px-8 py-6">
