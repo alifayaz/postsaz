@@ -375,17 +375,17 @@ export const translations = {
 
     // Home Page
     home: {
-      title: "PostSaz",
+      title: "PostSazAI",
       subtitle: "Smart Instagram Post Generator",
       hero: {
         title: "Create Your Instagram Post in Seconds",
         subtitle:
-            "With PostSaz, choose beautiful templates, upload photos, and get engaging captions. Everything ready for Instagram publishing!",
+            "With PostSazAI, choose beautiful templates, upload photos, and get engaging captions. Everything ready for Instagram publishing!",
         cta: "Start Free",
         ctaLoggedIn: "Go to Dashboard",
       },
       features: {
-        title: "Why PostSaz?",
+        title: "Why PostSazAI?",
         templates: {
           title: "Ready Templates",
           description: "Use professionally designed templates",
@@ -423,7 +423,7 @@ export const translations = {
       },
       signup: {
         title: "Create Account",
-        subtitle: "Join PostSaz users",
+        subtitle: "Join PostSazAI users",
         firstName: "First Name",
         lastName: "Last Name",
         email: "Email",

@@ -29,8 +29,8 @@ export default function HomePage({ params }: HomePageProps) {
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-pink-50">
       {/* Header */}
-      <header className="container mx-auto px-4 py-6">
-        <nav className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""} ${user ? 'flex-col' : 'flex-row'}`}>
+      <header className="container mx-auto px-4 py-4">
+        <div className={`flex items-center justify-between ${isRTL ? "flex-row-reverse" : ""} ${user ? 'flex-col' : 'flex-row'}`}>
           <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
             <img
                 src="/logo.svg"
@@ -57,7 +57,7 @@ export default function HomePage({ params }: HomePageProps) {
                 </Button>
               </>
             ) : (
-              <>
+              <div className={`flex items-center gap-2 ${isRTL ? "flex-row-reverse" : ""}`}>
               <Button asChild>
                 <Link href={getLocalizedPath("/login")} className="text-gray-600 hover:text-gray-900">
                   {t("nav.login")}
@@ -71,14 +71,14 @@ export default function HomePage({ params }: HomePageProps) {
                 {/*<Button asChild>
                   <Link href={getLocalizedPath("/create")}>{t("home.hero.cta")}</Link>
                 </Button>*/}
-              </>
+              </div>
             )}
           </div>
-        </nav>
+        </div>
       </header>
 
       {/* Hero Section */}
-      <section className="container mx-auto px-4 py-20 text-center">
+      <section className="container mx-auto px-4 pt-20 text-center">
         <h1 className="text-5xl font-bold text-gray-900 mb-6">{t("home.hero.title")}</h1>
         <p className="text-xl text-gray-600 mb-8 max-w-2xl mx-auto">{t("home.hero.subtitle")}</p>
         <Button size="lg" asChild className="text-lg px-8 py-6">
@@ -134,8 +134,11 @@ export default function HomePage({ params }: HomePageProps) {
       <footer className="bg-gray-900 text-white py-12">
         <div className="container mx-auto px-4 text-center">
           <div className={`flex items-center justify-center gap-2 mb-4 ${isRTL ? "flex-row-reverse" : ""}`}>
-            <Instagram className="h-6 w-6" />
-            <span className="text-xl font-bold">{t("home.title")}</span>
+            <img
+                src="/logo-w.svg"
+                alt="postsazAI"
+                className="max-w-full h-10 mx-auto object-cover"
+            />
           </div>
           <p className="text-gray-400">{t("home.subtitle")}</p>
         </div>
